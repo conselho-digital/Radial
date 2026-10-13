@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radial — Bookmarklets</title>
+<style>
+  :root { --bg:#0b0d13; --card:#151823; --line:rgba(255,255,255,.12); --txt:#e7e9ee; --dim:#8b91a1; --blue:#3b82f6; --red:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:32px 16px; background: radial-gradient(900px 500px at 20% -10%, #2a1a5e55, transparent), radial-gradient(800px 500px at 100% 10%, #0e3a6a44, transparent), var(--bg);
+         color:var(--txt); font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; min-height:100vh; }
+  main { max-width:760px; margin:0 auto; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  h1 span { color:var(--blue); }
+  p.sub { color:var(--dim); margin:0 0 24px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:20px; }
+  h2 { font-size:15px; margin:0 0 14px; }
+  label { display:block; font-size:12px; color:var(--dim); margin:12px 0 4px; }
+  input[type=text], input[type=number], textarea { width:100%; background:#0d0f16; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px 11px; font:inherit; }
+  textarea { min-height:130px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; resize:vertical; }
+  input:focus, textarea:focus { outline:none; border-color:var(--blue); }
+  .row { display:flex; gap:12px; } .row > div { flex:1; } .row > div.small { flex:0 0 110px; }
+  .ctx { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  .ctx label { display:flex; align-items:center; gap:6px; margin:0; padding:6px 12px; border:1px solid var(--line); border-radius:999px; color:var(--txt); font-size:13px; cursor:pointer; }
+  .ctx input { accent-color:var(--blue); }
+  .actions { display:flex; gap:10px; margin-top:16px; align-items:center; }
+  button { font:inherit; border:1px solid var(--line); background:#1d2130; color:var(--txt); padding:8px 16px; border-radius:10px; cursor:pointer; }
+  button:hover { border-color:var(--blue); }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; font-weight:600; }
+  button.danger:hover { border-color:var(--red); color:var(--red); }
+  #msg { font-size:13px; color:var(--dim); } #msg.err { color:var(--red); } #msg.ok { color:#4ade80; }
+  ul { list-style:none; margin:0; padding:0; }
+  li { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  li:first-child { border-top:0; }
+  .idx { flex:0 0 38px; text-align:center; padding:3px 0; border-radius:8px; background:#0d0f16; border:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  .info { flex:1; min-width:0; } .info b { display:block; } .info small { color:var(--dim); }
+  .empty { color:var(--dim); }
+  small.hint { color:var(--dim); display:block; margin-top:6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span>Radial</span> · Bookmarklets</h1>
+  <p class="sub">Cadastre trechos de JavaScript e escolha em quais anéis eles aparecem. Atalho do menu: <code>chrome://extensions/shortcuts</code></p>
+
+  <section>
+    <h2 id="formTitle">Novo bookmarklet</h2>
+    <div class="row">
+      <div class="small"><label for="index">Índice (1–64)</label><input type="number" id="index" min="1" max="64"></div>
+      <div><label for="name">Nome (aparece no botão)</label><input type="text" id="name" maxlength="40" placeholder="Ex.: Limpar página"></div>
+    </div>
+    <label for="code">Código (aceita <code>javascript:...</code>)</label>
+    <textarea id="code" spellcheck="false" placeholder="javascript:(function(){ alert('olá'); })();"></textarea>
+    <label>Mostrar nos anéis</label>
+    <div class="ctx" id="ctx">
+      <label><input type="checkbox" value="general" checked> Geral</label>
+      <label><input type="checkbox" value="sheets"> Planilhas</label>
+      <label><input type="checkbox" value="docs"> Docs</label>
+      <label><input type="checkbox" value="teams"> Teams</label>
+    </div>
+    <small class="hint">Cada anel mostra no máximo 10 botões. Páginas com CSP estrito podem bloquear bookmarklets.</small>
+    <div class="actions">
+      <button class="primary" id="save">Salvar</button>
+      <button id="reset">Limpar</button>
+      <span id="msg"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Salvos</h2>
+    <ul id="list"></ul>
+  </section>
+</main>
+<script src="options.js"></script>
+</body>
+</html>
