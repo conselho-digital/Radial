@@ -14,7 +14,7 @@ async function openRadial(tab) {
   } catch (_) {
     try {
       await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['content.css'] });
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['sites.js', 'content.js'] });
       await chrome.tabs.sendMessage(tab.id, OPEN_MSG);
     } catch (e) {
       // Páginas internas (chrome://, Web Store) não aceitam injeção.

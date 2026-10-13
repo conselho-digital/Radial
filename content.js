@@ -1,4 +1,5 @@
 // Content script: monta o menu radial no cursor e executa as ações.
+// Os sites e suas ferramentas ficam em sites.js (dados); aqui está o motor.
 (() => {
   if (window.__radialLoaded) return; // evita carregar duas vezes (injeção sob demanda)
   window.__radialLoaded = true;
@@ -35,22 +36,88 @@
     micOff: '<path d="M3 3l18 18"/><path d="M9 9v2a3 3 0 0 0 5 2.2M15 9.3V6a3 3 0 0 0-5.9-.8"/><path d="M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.6 2.8M12 18v3"/>',
     video: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="m22 8-6 4 6 4z"/>',
     leave: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
-    code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>'
+    code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
+    download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',
+    folder: '<path d="M3 6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+    star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    reply: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v3"/>',
+    replyAll: '<path d="m7 17-5-5 5-5M12 17l-5-5 5-5"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/>',
+    archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    checkCircle: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    calendar: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>',
+    today: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/><circle cx="12" cy="15.5" r="1.8"/>',
+    hand: '<path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 10V3.5a1.5 1.5 0 0 1 3 0V10M14 10V5a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7c-3 0-4-1.5-6-5l-1-2a1.5 1.5 0 0 1 2.5-1.5L8 14"/>',
+    screen: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+    redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+    layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+    crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/>',
+    image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 16-5-5-9 9"/>',
+    play: '<path d="m7 4 13 8-13 8z"/>',
+    playPause: '<path d="M4 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/>',
+    fullscreen: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+    volumeOff: '<path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 6M21 9l-5 6"/>',
+    fwd: '<path d="m13 6 6 6-6 6M5 6l6 6-6 6"/>',
+    back: '<path d="m11 6-6 6 6 6M19 6l-6 6 6 6"/>',
+    next: '<path d="m6 5 9 7-9 7zM18 5v14"/>',
+    prev: '<path d="m18 5-9 7 9 7zM6 5v14"/>',
+    shuffle: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
+    repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    heart: '<path d="M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z"/>',
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+    cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l3 12h11l2-8H6"/>',
+    package: '<path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01"/>',
+    text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+    square: '<rect x="4" y="4" width="16" height="16" rx="2"/>',
+    pen: '<path d="m3 21 3.5-1 12-12a2.1 2.1 0 0 0-3-3l-12 12zM14 6l3 3"/>',
+    eraser: '<path d="m7 21-4-4a2 2 0 0 1 0-3L14 3a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3L11 21zM8 11l6 6"/>',
+    record: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+    highlight: '<path d="m9 11-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>',
+    save: '<path d="M5 3h12l4 4v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM7 3v6h8V3M7 21v-8h10v8"/>',
+    filter: '<path d="M3 4h18l-7 8v7l-4 2v-9z"/>',
+    sort: '<path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/>',
+    tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/>',
+    bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+    thumb: '<path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 4h6a2 2 0 0 1 2 2l-2 7a2 2 0 0 1-2 1H7"/>',
+    terminal: '<path d="m4 17 6-6-6-6M12 19h8"/>',
+    rocket: '<path d="M12 15l-3-3a22 22 0 0 1 8-9 2 2 0 0 1 4 4 22 22 0 0 1-9 8zM9 12H4s.5-3 2-4c1.5-1 5 0 5 0M12 15v5s3-.5 4-2c1-1.5 0-5 0-5"/>',
+    newChat: '<path d="M21 12a8 8 0 0 1-12 7L3 21l2-5a8 8 0 1 1 16-4z"/><path d="M12 9v6M9 12h6"/>',
+    paperclip: '<path d="m21 11-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/>',
+    stats: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+    translate: '<path d="M4 5h9M8 3v2M6 5c0 4 3 7 7 8M12 5c0 4-3 7-7 8M13 21l4-9 4 9M14.5 18h5"/>',
+    swap: '<path d="M7 7h13l-4-4M17 17H4l4 4"/>',
+    sticky: '<path d="M4 4h16v10l-6 6H4zM14 20v-6h6"/>',
+    zoom: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M8 11h6M11 8v6"/>',
+    frame: '<path d="M6 2v20M18 2v20M2 6h20M2 18h20"/>',
+    component: '<path d="m12 3 3 3-3 3-3-3zM12 15l3 3-3 3-3-3zM3 12l3-3 3 3-3 3zM15 12l3-3 3 3-3 3z"/>',
+    subtitles: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 12h3M7 15h6M14 12h3"/>',
+    sparkle: '<path d="m12 3 2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
+    slideNew: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 8v5M9.5 10.5h5M8 21h8"/>',
+    move: '<path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>',
+    columns: '<rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/>',
+    pr: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-2M15 3l-3 3 3 3"/>',
+    issue: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1.5"/>'
   };
 
   // ---------- Contexto do site ----------
-  const CONTEXT_NAMES = { general: 'Geral', sheets: 'Planilhas', docs: 'Docs', teams: 'Teams' };
-
-  function detectContext() {
-    const url = window.location.href;
-    if (/^https:\/\/docs\.google\.com\/spreadsheets\//.test(url)) return 'sheets';
-    if (/^https:\/\/docs\.google\.com\/document\//.test(url)) return 'docs';
-    if (/^https:\/\/([\w-]+\.)*(teams\.microsoft\.com|teams\.live\.com|teams\.cloud\.microsoft)\//.test(url)) return 'teams';
-    return 'general';
+  // sites.js (carregado antes) expõe RADIAL_DETECT e RADIAL_SITES.
+  function detectSite() {
+    return window.RADIAL_DETECT(window.location);
   }
 
   // ---------- Utilidades ----------
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
 
   function toast(text, isError) {
     const el = document.createElement('div');
@@ -75,59 +142,109 @@
     }
   }
 
-  // Alvo de teclado: Docs/Sheets recebem teclas num iframe invisível.
-  function keyTarget() {
-    const f = document.querySelector('iframe.docs-texteventtarget-iframe');
-    const d = f && f.contentDocument;
-    if (d) return d.activeElement || d.body;
+  const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
+
+  // Alvo de teclado: Docs/Sheets/Slides recebem teclas num iframe invisível.
+  function keyTarget(to) {
+    if (to === 'docs') {
+      const f = document.querySelector('iframe.docs-texteventtarget-iframe');
+      const d = f && f.contentDocument;
+      if (d) return d.activeElement || d.body;
+    }
     return document.activeElement || document.body;
   }
 
-  // Dispara um atalho: pressKeys('b', { ctrl: true }). Ctrl vira Cmd no Mac.
-  function pressKeys(key, mods = {}) {
-    const t = keyTarget();
+  // keyCode/code das teclas que não são letra ou dígito.
+  const KEYS = {
+    Enter: [13, 'Enter'], Escape: [27, 'Escape'], Delete: [46, 'Delete'], Backspace: [8, 'Backspace'],
+    Tab: [9, 'Tab'], ' ': [32, 'Space'], ArrowLeft: [37, 'ArrowLeft'], ArrowUp: [38, 'ArrowUp'],
+    ArrowRight: [39, 'ArrowRight'], ArrowDown: [40, 'ArrowDown'], F2: [113, 'F2'], F5: [116, 'F5'],
+    '/': [191, 'Slash'], '.': [190, 'Period'], '+': [187, 'Equal'], '=': [187, 'Equal']
+  };
+
+  // Dispara um atalho. Ctrl vira Cmd no Mac.
+  function pressKeys(key, mods = {}, to) {
+    const t = keyTarget(to);
     if (t.focus) t.focus();
-    const upper = key.length === 1 ? key.toUpperCase() : key;
-    const keyCode = key.length === 1 ? upper.charCodeAt(0) : ({ Enter: 13, Escape: 27 }[key] || 0);
+    let keyCode, code;
+    if (KEYS[key]) [keyCode, code] = KEYS[key];
+    else if (/^[a-z]$/i.test(key)) { keyCode = key.toUpperCase().charCodeAt(0); code = 'Key' + key.toUpperCase(); }
+    else if (/^\d$/.test(key)) { keyCode = key.charCodeAt(0); code = 'Digit' + key; }
+    else { keyCode = 0; code = key; }
     const init = {
-      key, code: /^[a-z]$/i.test(key) ? 'Key' + upper : (/^\d$/.test(key) ? 'Digit' + key : key),
-      keyCode, which: keyCode,
-      ctrlKey: !!mods.ctrl && !IS_MAC, metaKey: !!mods.ctrl && IS_MAC,
-      shiftKey: !!mods.shift, altKey: !!mods.alt,
+      key, code, keyCode, which: keyCode,
+      ctrlKey: !!mods.c && !IS_MAC, metaKey: !!mods.c && IS_MAC,
+      shiftKey: !!mods.s, altKey: !!mods.a,
       bubbles: true, cancelable: true, composed: true
     };
-    ['keydown', 'keyup'].forEach((type) => t.dispatchEvent(new KeyboardEvent(type, init)));
+    ['keydown', 'keypress', 'keyup'].forEach((type) => {
+      if (type === 'keypress' && key.length !== 1) return;
+      t.dispatchEvent(new KeyboardEvent(type, init));
+    });
+    return true;
   }
 
-  function clickLike(el) {
+  function mouseSeq(el, types) {
     const r = el.getBoundingClientRect();
     const o = { bubbles: true, cancelable: true, view: window, button: 0,
       clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
-    ['mouseover', 'mousedown', 'mouseup', 'click'].forEach((t) => el.dispatchEvent(new MouseEvent(t, o)));
+    types.forEach((t) => el.dispatchEvent(new MouseEvent(t, o)));
   }
 
-  // Clica no primeiro seletor que existir. Retorna true se achou.
-  function clickSel(selectors) {
-    for (const s of selectors) {
-      const el = document.querySelector(s);
-      if (el) { clickLike(el); return true; }
+  function clickLike(el) {
+    if (el instanceof HTMLInputElement && el.type === 'file') { el.click(); return; } // abre o seletor de arquivo
+    mouseSeq(el, ['mouseover', 'mousedown', 'mouseup', 'click']);
+  }
+
+  // ---------- Busca de elementos ----------
+  const INTERACTIVE = 'button,a,[role="button"],[role="menuitem"],[role="tab"],[role="option"],[role="link"],' +
+    '[aria-label],[title],[data-tooltip],input[type="button"],input[type="submit"],.goog-menuitem';
+  const GENERIC = 'div,span,li,p,label';
+
+  function labelsOf(el) {
+    return [el.getAttribute('aria-label'), el.getAttribute('title'), el.getAttribute('data-tooltip'),
+      (el.textContent || '').length <= 60 ? el.textContent : ''].map(norm).filter(Boolean);
+  }
+
+  // Acha elementos pelo texto (pt/en): exato > começa com > contém.
+  function findAllByText(labels) {
+    const want = labels.map(norm);
+    const pool = [...document.querySelectorAll(INTERACTIVE)].filter(visible);
+    for (const mode of ['eq', 'start', 'has']) {
+      for (const w of want) {
+        const hits = pool.filter((el) => labelsOf(el).some((l) =>
+          mode === 'eq' ? l === w : mode === 'start' ? l.startsWith(w) : l.includes(w)));
+        if (hits.length) return hits;
+      }
     }
-    return false;
+    // último recurso: elementos genéricos com texto exato (menus desenhados em <div>)
+    const generic = [...document.querySelectorAll(GENERIC)].filter((el) => visible(el) && el.children.length <= 1);
+    for (const w of want) {
+      const hits = generic.filter((el) => norm(el.textContent) === w);
+      if (hits.length) return hits;
+    }
+    return [];
   }
 
-  // Procura item de menu visível pelo texto (pt/en), com limite de palavra.
+  function findAllBySel(selectors) {
+    for (const s of selectors) {
+      let list = [];
+      try { list = [...document.querySelectorAll(s)]; } catch (_) { /* seletor inválido */ }
+      if (list.length) return list;
+    }
+    return [];
+  }
+
+  // Menus do Docs/Sheets/Slides (.goog-menuitem), com limite de palavra.
   function findMenuItem(labels) {
     const res = labels.map((l) => new RegExp('(^|\\s)' + l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|\\s)', 'i'));
     const items = document.querySelectorAll('.goog-menuitem:not(.goog-menuitem-disabled), [role="menuitem"]');
-    return [...items].find((el) => el.offsetParent !== null &&
-      res.some((re) => re.test((el.textContent || '').trim())));
+    return [...items].find((el) => visible(el) && res.some((re) => re.test((el.textContent || '').trim())));
   }
 
-  // Abre um menu do Docs/Sheets (ex.: #docs-insert-menu) e escolhe um item,
-  // entrando em submenus se preciso.
   async function chooseMenu(menuId, targets, submenus = []) {
     const menu = document.getElementById(menuId);
-    if (!menu) return toast('Menu não encontrado.', true);
+    if (!menu) return false;
     clickLike(menu);
     await sleep(220);
     let item = findMenuItem(targets);
@@ -136,8 +253,31 @@
       const s = findMenuItem([sub]);
       if (s) { clickLike(s); await sleep(260); item = findMenuItem(targets); }
     }
-    if (item) clickLike(item);
-    else toast('Item de menu não encontrado.', true);
+    if (!item) return false;
+    clickLike(item);
+    return true;
+  }
+
+  // ---------- Mídia ----------
+  function mainMedia() {
+    const list = [...document.querySelectorAll('video,audio')];
+    const area = (m) => m.clientWidth * m.clientHeight;
+    return list.sort((a, b) => area(b) - area(a))[0] || null;
+  }
+
+  async function doMedia(step) {
+    const m = mainMedia();
+    if (!m) return false;
+    if (step.media === 'play') { if (m.paused) await m.play(); else m.pause(); return true; }
+    if (step.media === 'mute') { m.muted = !m.muted; return true; }
+    if (step.media === 'seek') { m.currentTime = Math.max(0, m.currentTime + step.n); return true; }
+    if (step.media === 'full') {
+      if (document.fullscreenElement) { await document.exitFullscreen(); return true; }
+      const box = m.closest('.html5-video-player,[data-uia="player"],[data-a-target="player-overlay-click-handler"],.video-player') || m.parentElement || m;
+      await box.requestFullscreen();
+      return true;
+    }
+    return false;
   }
 
   function toggleDarkMode() {
@@ -151,48 +291,108 @@
     document.documentElement.appendChild(st);
   }
 
-  // ---------- Ações nativas por contexto ----------
-  const general = [
-    { id: 'reload', label: 'Recarregar', icon: 'refresh', run: () => location.reload() },
-    { id: 'copy-url', label: 'Copiar URL', icon: 'link', run: async () => { await copyText(location.href); toast('URL copiada'); } },
-    { id: 'top', label: 'Topo', icon: 'top', run: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
-    { id: 'dark', label: 'Modo escuro', icon: 'moon', run: toggleDarkMode }
-  ];
+  // ---------- Tokens de URL ----------
+  const RESERVED = new Set(['settings', 'orgs', 'marketplace', 'explore', 'notifications', 'pulls', 'issues', 'topics',
+    'trending', 'sponsors', 'apps', 'features', 'login', 'new', 'codespaces', 'organizations', 'users', 'about',
+    'pricing', 'security', 'enterprise', 'dashboard', 'account', 'teams', 'integrations', 'docs', 'templates', 'help']);
 
-  const NATIVE = {
-    general,
-    sheets: [
-      { id: 's-copy', label: 'Copiar valor', icon: 'copy', run: () => pressKeys('c', { ctrl: true }) },
-      { id: 's-paste', label: 'Colar valor', icon: 'paste', run: () => pressKeys('v', { ctrl: true, shift: true }) },
-      { id: 's-sum', label: 'AutoSoma', icon: 'sigma', run: () => chooseMenu('docs-insert-menu', ['sum', 'soma'], ['function', 'função', 'funcao']) },
-      { id: 's-row', label: 'Inserir linha', icon: 'rowPlus', run: () => chooseMenu('docs-insert-menu', ['row above', 'linha acima', 'rows above', 'linhas acima'], ['rows', 'linhas']) },
-      { id: 's-col', label: 'Inserir coluna', icon: 'colPlus', run: () => chooseMenu('docs-insert-menu', ['column left', 'coluna à esquerda', 'coluna a esquerda', 'columns left'], ['columns', 'colunas']) },
-      { id: 's-money', label: 'Moeda', icon: 'dollar', run: () => pressKeys('4', { ctrl: true, shift: true }) }
-    ],
-    docs: [
-      { id: 'd-table', label: 'Inserir tabela', icon: 'table', run: () => chooseMenu('docs-insert-menu', ['table', 'tabela']) },
-      { id: 'd-comment', label: 'Comentário', icon: 'comment', run: () => pressKeys('m', { ctrl: true, alt: true }) },
-      { id: 'd-bold', label: 'Negrito', icon: 'bold', run: () => pressKeys('b', { ctrl: true }) },
-      { id: 'd-italic', label: 'Itálico', icon: 'italic', run: () => pressKeys('i', { ctrl: true }) }
-    ],
-    teams: [
-      { id: 't-mic', label: 'Mudo', icon: 'micOff', run: () => {
-        if (!clickSel(['#microphone-button', '[data-tid="toggle-mute"]', 'button[aria-label*="mic" i]', 'button[aria-label*="mute" i]']))
-          pressKeys('m', { ctrl: true, shift: true });
-      } },
-      { id: 't-cam', label: 'Câmera', icon: 'video', run: () => {
-        if (!clickSel(['#video-button', '[data-tid="toggle-video"]', 'button[aria-label*="camera" i]', 'button[aria-label*="câmera" i]']))
-          pressKeys('o', { ctrl: true, shift: true });
-      } },
-      { id: 't-leave', label: 'Sair', icon: 'leave', run: () => {
-        if (!clickSel(['#hangup-button', '[data-tid="hangup-main-btn"]', 'button[aria-label*="leave" i]', 'button[aria-label*="sair" i]']))
-          pressKeys('h', { ctrl: true, shift: true });
-      } }
-    ]
-  };
+  function tokenValues() {
+    const seg = location.pathname.split('/').filter(Boolean);
+    const ok = seg.length >= 2 && !RESERVED.has(seg[0].toLowerCase());
+    const login = document.querySelector('meta[name="user-login"]');
+    let proj = null;
+    if (location.pathname.includes('/-/')) proj = location.pathname.split('/-/')[0];
+    else if (ok) proj = '/' + seg[0] + '/' + seg[1];
+    return { owner: ok ? seg[0] : null, repo: ok ? seg[1] : null, login: login && login.content || null, proj };
+  }
+
+  // Troca {owner} {repo} {login} {proj}; devolve null se faltar algum.
+  function expand(tpl) {
+    const t = tokenValues();
+    let missing = false;
+    const out = tpl.replace(/\{(owner|repo|login|proj)\}/g, (_, k) => { if (!t[k]) missing = true; return t[k] || ''; });
+    return missing ? null : out;
+  }
+
+  // ---------- Interpretador de passos ----------
+  const DEFAULT_SEARCH = ['input[type="search"]', 'input[name="q"]', '[role="searchbox"]', 'input[aria-label*="earch" i]',
+    'input[placeholder*="earch" i]', 'input[aria-label*="esquis" i]', 'input[placeholder*="esquis" i]'];
+
+  async function runStep(step) {
+    if (!step) return false;
+
+    if (step.seq) {
+      for (const s of step.seq) {
+        if (!(await runStep(s))) return false;
+        if (!s.wait) await sleep(120);
+      }
+      return true;
+    }
+    if (step.any) {
+      for (const s of step.any) if (await runStep(s)) return true;
+      return false;
+    }
+    if (step.wait) { await sleep(step.wait); return true; }
+
+    if (step.url) {
+      let u = expand(step.url);
+      if (!u && step.fb) u = expand(step.fb);
+      if (!u) return false;
+      window.location.assign(u.startsWith('/') ? location.origin + u : u);
+      return true;
+    }
+    if (step.k !== undefined) return pressKeys(step.k, step, step.to);
+
+    if (step.click) {
+      let hits = step.click.length ? findAllBySel(step.click) : [];
+      if (!hits.length && step.text && step.text.length) hits = findAllByText(step.text);
+      const el = step.last ? hits[hits.length - 1] : hits[0];
+      if (!el) return false;
+      clickLike(el);
+      return true;
+    }
+    if (step.focus) {
+      const el = findAllBySel(step.focus).find(visible);
+      if (!el) return false;
+      el.focus();
+      return true;
+    }
+    if (step.search) {
+      const el = findAllBySel([...(step.sel || []), ...DEFAULT_SEARCH]).find(visible);
+      if (el) { el.focus(); return true; }
+      return pressKeys('/'); // muitos sites abrem a busca com "/"
+    }
+    if (step.media) return doMedia(step);
+    if (step.menu) return chooseMenu(step.menu, step.t, step.sub);
+    if (step.pick) {
+      const item = findMenuItem(step.pick);
+      if (!item) return false;
+      clickLike(item);
+      return true;
+    }
+    if (step.type) { return document.execCommand('insertText', false, step.type); }
+    if (step.ctx) {
+      const el = findAllBySel(step.ctx).find(visible);
+      if (!el) return false;
+      mouseSeq(el, ['contextmenu']);
+      return true;
+    }
+    if (step.copy) {
+      const text = expand(step.copy);
+      if (!text) return false;
+      await copyText(text);
+      toast('Copiado');
+      return true;
+    }
+    if (step.fn === 'reload') { location.reload(); return true; }
+    if (step.fn === 'copyUrl') { await copyText(location.href); toast('URL copiada'); return true; }
+    if (step.fn === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return true; }
+    if (step.fn === 'dark') { toggleDarkMode(); return true; }
+    return false;
+  }
 
   // ---------- Bookmarklets ----------
-  // Guardados em chrome.storage.sync como bm_<1..64> = { name, code, ctx: [...] }
+  // Guardados em chrome.storage.sync como bm_<1..64> = { name, code, ctx: [ids de sites] }
   async function loadBookmarklets(ctx) {
     try {
       const all = await chrome.storage.sync.get(null);
@@ -211,6 +411,17 @@
     } catch (_) {
       return [];
     }
+  }
+
+  // Transforma as ações do registro em itens do anel.
+  function siteItems(site) {
+    return site.actions.map((a, i) => ({
+      id: site.id + '-' + i, label: a.label, icon: a.icon,
+      run: async () => {
+        const ok = await runStep(a.do);
+        if (!ok) toast('Não encontrei "' + a.label + '" nesta página.', true);
+      }
+    }));
   }
 
   // ---------- Renderização do anel ----------
@@ -233,7 +444,7 @@
 
   // Quebra o rótulo em até 2 linhas.
   function wrapLabel(text) {
-    const t = text.length > 20 ? text.slice(0, 19) + '…' : text;
+    const t = text.length > 26 ? text.slice(0, 25) + '…' : text;
     const words = t.split(' ');
     if (words.length === 1 || t.length <= 9) return [t];
     let best = 1, diff = Infinity;
@@ -294,7 +505,7 @@
       svg.appendChild(g);
     });
 
-    // Centro: mostra o anel atual e alterna Contexto <-> Geral.
+    // Centro: mostra o anel atual e alterna Site <-> Geral.
     const center = el('g', { class: 'rdl-center' + (canSwap ? ' rdl-center-btn' : '') });
     center.appendChild(el('circle', { cx: c, cy: c, r: R_IN - 4 }));
     const ct = el('text', { x: c, y: c + 4, 'text-anchor': 'middle' });
@@ -307,16 +518,17 @@
 
   async function open() {
     if (root) { close(); return; }
-    const ctx = detectContext();
+    const site = detectSite();
+    const general = window.RADIAL_SITES.find((s) => s.id === 'general');
 
-    // Carrega bookmarklets do contexto e do anel "Geral".
-    const [bmCtx, bmGeneral] = await Promise.all([
-      loadBookmarklets(ctx),
-      ctx === 'general' ? Promise.resolve([]) : loadBookmarklets('general')
+    // Carrega bookmarklets do site e do anel "Geral".
+    const [bmSite, bmGeneral] = await Promise.all([
+      loadBookmarklets(site.id),
+      site.id === 'general' ? Promise.resolve([]) : loadBookmarklets('general')
     ]);
-    const rings = { [ctx]: [...NATIVE[ctx], ...bmCtx].slice(0, MAX_ITEMS) };
-    if (ctx !== 'general') rings.general = [...NATIVE.general, ...bmGeneral].slice(0, MAX_ITEMS);
-    let current = ctx;
+    const rings = { [site.id]: [...siteItems(site), ...bmSite].slice(0, MAX_ITEMS) };
+    if (site.id !== 'general') rings.general = [...siteItems(general), ...bmGeneral].slice(0, MAX_ITEMS);
+    let current = site.id;
 
     // Posição: cursor (ou centro da tela), mantida dentro da janela.
     const half = SIZE / 2 + 8;
@@ -335,8 +547,9 @@
 
     const render = () => {
       menu.querySelector('svg')?.remove();
-      menu.appendChild(buildRing(rings[current], CONTEXT_NAMES[current], ctx !== 'general',
-        () => { current = current === ctx ? 'general' : ctx; render(); }));
+      const label = current === site.id ? site.short : general.short;
+      menu.appendChild(buildRing(rings[current], label, site.id !== 'general',
+        () => { current = current === site.id ? 'general' : site.id; render(); }));
     };
     const disc = document.createElement('div');
     disc.className = 'rdl-disc';

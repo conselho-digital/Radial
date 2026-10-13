@@ -1,5 +1,6 @@
 // Painel de opções: CRUD de bookmarklets em chrome.storage.sync (chaves bm_1 … bm_64).
-const CTX_NAMES = { general: 'Geral', sheets: 'Planilhas', docs: 'Docs', teams: 'Teams' };
+// Sites vêm de sites.js (window.RADIAL_SITES): id + nome.
+const CTX_NAMES = Object.fromEntries(window.RADIAL_SITES.map((s) => [s.id, s.name]));
 const $ = (id) => document.getElementById(id);
 
 function setMsg(text, kind) {
@@ -20,6 +21,23 @@ function nextFreeIndex(items) {
   const used = new Set(items.map((b) => b.index));
   for (let i = 1; i <= 64; i++) if (!used.has(i)) return i;
   return 64;
+}
+
+// Monta os checkboxes de contexto (um por site).
+function buildCtx() {
+  const box = $('ctx');
+  window.RADIAL_SITES.forEach((s) => {
+    const l = document.createElement('label');
+    const c = document.createElement('input');
+    c.type = 'checkbox';
+    c.value = s.id;
+    l.append(c, ' ' + s.name);
+    box.appendChild(l);
+  });
+  $('ctxFilter').oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    box.querySelectorAll('label').forEach((l) => { l.style.display = l.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  };
 }
 
 function resetForm(items) {
@@ -94,4 +112,5 @@ $('save').onclick = async () => {
 
 $('reset').onclick = async () => { resetForm(await loadAll()); setMsg(''); };
 
+buildCtx();
 (async () => { resetForm(await render()); })();
