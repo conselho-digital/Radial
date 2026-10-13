@@ -70,8 +70,8 @@
       </fieldset>
 
       <div class="field" id="holdBox">
-        <label class="lbl" for="holdMs">Tempo para segurar<output id="holdOut" for="holdMs">350 ms</output></label>
-        <input type="range" id="holdMs" min="150" max="1000" step="50" value="350">
+        <label class="lbl" for="holdMs">Tempo para segurar<output id="holdOut" for="holdMs">150 ms</output></label>
+        <input type="range" id="holdMs" min="150" max="1000" step="50" value="150">
         <p class="help">Quanto tempo manter o botão direito pressionado até o menu abrir. Mover o mouse antes disso cancela.</p>
       </div>
 
@@ -98,12 +98,13 @@
         <legend>Botão para cancelar</legend>
         <div class="seg full" role="radiogroup" aria-label="Botão para cancelar">
           <label><input type="radio" name="cancelBtn" value="none"><span class="pill">Nenhum</span></label>
+          <label><input type="radio" name="cancelBtn" value="left"><span class="pill">Esquerdo</span></label>
           <label><input type="radio" name="cancelBtn" value="right"><span class="pill">Direito</span></label>
           <label><input type="radio" name="cancelBtn" value="middle"><span class="pill">Meio</span></label>
           <label><input type="radio" name="cancelBtn" value="back"><span class="pill">Voltar</span></label>
           <label><input type="radio" name="cancelBtn" value="forward"><span class="pill">Avançar</span></label>
         </div>
-        <p class="help">Clicar com este botão enquanto o radial está aberto fecha o menu sem ativar nada. Não vale o mesmo botão do gatilho.</p>
+        <p class="help">Clicar com este botão enquanto o radial está aberto fecha o menu sem ativar nada (com o esquerdo, clicar numa fatia deixa de ativá-la; use soltar para ativar). Não vale o mesmo botão do gatilho.</p>
       </fieldset>
 
       <div class="field">

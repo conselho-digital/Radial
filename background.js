@@ -55,8 +55,11 @@ function normalizeBookmarklet(raw) {
 }
 
 // Roda o código no mundo MAIN da página (acesso às variáveis da própria página).
-// 1) eval indireto; 2) se a CSP/Trusted Types bloquear o eval, tag <script> inline.
+// 1) eval indireto; 2) se a CSP/Trusted Types bloquear o eval, tag <script> inline;
+// 3) se a CSP bloquear também, chrome.userScripts (não sofre CSP; exige ligar "Permitir scripts do usuário").
 // Erros do próprio bookmarklet NÃO disparam nova tentativa (evita rodar duas vezes).
+// Favoritos copiados da barra de endereço podem trazer %60, %22… no meio do código: se o código
+// não compila e tem escapes %XX, tenta de novo com os escapes decodificados.
 async function runBookmarklet(tabId, raw) {
   const code = normalizeBookmarklet(raw);
   if (!code) return { ok: false, error: 'Bookmarklet vazio.' };
@@ -66,12 +69,16 @@ async function runBookmarklet(tabId, raw) {
     args: [code],
     func: async (src) => {
       const BLOCKED = /unsafe-eval|content security policy|trustedscript|trusted type/i;
+      const unescape = (t) => t.replace(/(?:%[0-9a-f]{2})+/gi, (m) => { try { return decodeURIComponent(m); } catch (_) { return m; } });
+      const fail = (e) => ({ ok: false, error: 'Erro no bookmarklet: ' + (e && e.message ? e.message : e) });
       try {
         (0, eval)(src);
         return { ok: true };
       } catch (e) {
-        if (!BLOCKED.test(String(e && e.message))) {
-          return { ok: false, error: 'Erro no bookmarklet: ' + (e && e.message ? e.message : e) };
+        if (e instanceof SyntaxError && /%[0-9a-f]{2}/i.test(src)) {
+          try { (0, eval)(unescape(src)); return { ok: true }; } catch (e2) { if (!BLOCKED.test(String(e2 && e2.message))) return fail(e2); }
+        } else if (!BLOCKED.test(String(e && e.message))) {
+          return fail(e);
         }
       }
       // eval bloqueado: tenta <script> inline e observa violações de CSP.
@@ -85,14 +92,30 @@ async function runBookmarklet(tabId, raw) {
         s.remove();
         await new Promise((r) => setTimeout(r, 60));
       } catch (e) {
-        return { ok: false, error: 'Bloqueado pela página: ' + (e && e.message ? e.message : e) };
+        return { ok: false, blocked: true, error: 'Bloqueado pela página: ' + (e && e.message ? e.message : e) };
       } finally {
         document.removeEventListener('securitypolicyviolation', onViolation);
       }
-      return violated ? { ok: false, error: 'Bloqueado pela política de segurança (CSP) desta página.' } : { ok: true };
+      return violated ? { ok: false, blocked: true, error: 'Bloqueado pela política de segurança (CSP) desta página.' } : { ok: true };
     }
   });
-  return (res && res.result) || { ok: false, error: 'Sem resposta da página.' };
+  const out = (res && res.result) || { ok: false, error: 'Sem resposta da página.' };
+  if (out.blocked) return runWithUserScripts(tabId, code, out);
+  return out;
+}
+
+// Último recurso para páginas com CSP estrito.
+async function runWithUserScripts(tabId, code, blockedResult) {
+  if (!chrome.userScripts || !chrome.userScripts.execute) {
+    return { ok: false, error: blockedResult.error + ' Para contornar: em chrome://extensions > Radial > Detalhes, ligue "Permitir scripts do usuário" (Chrome 135+).' };
+  }
+  try {
+    // Mesmo tratamento de %XX: o código roda dentro de try para não derrubar a página.
+    await chrome.userScripts.execute({ target: { tabId }, world: 'MAIN', injectImmediately: true, js: [{ code }] });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: blockedResult.error + ' (' + (e && e.message ? e.message : e) + ') Ligue "Permitir scripts do usuário" nos detalhes da extensão.' };
+  }
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

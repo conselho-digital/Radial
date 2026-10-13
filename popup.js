@@ -72,32 +72,51 @@ function row(name, badgeText, sub, muted) {
   const ringId = known ? site.id : 'host:' + host;
   $('siteName').textContent = known ? site.name : host;
   $('siteSub').textContent = known ? host : 'Site fora da lista · anel próprio';
-  $('savedLead').textContent = known ? 'Anel de ' + site.short + ' neste site.' : 'Este site ganha um anel só dele, ao lado do Geral.';
 
   const builtins = known ? site.actions : [];
 
-  // ----- Lista -----
+  // ----- Lista (grupos de 5: cada grupo é um radial; limite de 10 por anel) -----
+  const PAGE = 5, LIMIT = 10;
+  const customIn = async () => (await S.list()).filter((o) => (o.ctx || []).includes(ringId));
+  const ringTotal = async () => builtins.length + (await customIn()).length;
+  const limitMsg = async () => ((await ringTotal()) >= LIMIT ? 'Limite de ' + LIMIT + ' opções neste anel (2 radiais de 5). Remova uma antes.' : null);
+
   async function renderList() {
-    const all = await S.list();
+    const custom = await customIn();
     const ul = $('list');
     ul.textContent = '';
-    builtins.forEach((a) => ul.appendChild(row(a.label, 'Padrão', '', true)));
-    all.filter((o) => (o.ctx || []).includes(ringId)).forEach((o) => {
-      const sub = o.type === 'keys' ? (o.keys || []).map(E.comboText).join(' › ')
-        : o.type === 'js' ? 'Bookmarklet' + (o.shortcut ? ' · ' + E.comboText(o.shortcut) : '') : 'Ação pronta';
-      const li = row(o.name, o.type === 'keys' ? 'Teclas' : o.type === 'js' ? 'JS' : 'Ação', sub);
-      if (o.type === 'keys') li.append(iconButton('Editar ' + o.name, 'edit', '', () => { openAdd('keys'); editor.edit(o); }));
-      li.append(iconButton('Remover ' + o.name + ' do radial', 'trash', 'danger', async () => {
-        const ctx = (o.ctx || []).filter((c) => c !== ringId);
-        if (!ctx.length && o.type !== 'js') await S.remove(o.id); // bookmarklets continuam salvos nas configurações
-        else await S.save({ ...o, ctx });
-        toast('Removida do radial.');
-        renderList();
-        fillBookmarklets();
-      }));
-      ul.appendChild(li);
+    const entries = [
+      ...builtins.map((a) => ({ li: () => row(a.label, 'Padrão', '', true) })),
+      ...custom.map((o) => ({ li: () => customRow(o) }))
+    ];
+    $('savedLead').textContent = (known ? 'Anel de ' + site.short + '. ' : 'Anel só deste site. ') + entries.length + '/' + LIMIT + ' opções.';
+    entries.forEach((en, i) => {
+      if (i % PAGE === 0) {
+        const h = document.createElement('li');
+        h.className = 'group-head';
+        h.textContent = i < LIMIT ? 'Radial ' + (i / PAGE + 1) : 'Fora do limite (não aparecem)';
+        ul.appendChild(h);
+      }
+      ul.appendChild(en.li());
     });
-    if (!ul.children.length) ul.appendChild(Object.assign(document.createElement('li'), { className: 'empty-state', textContent: 'Nenhuma opção neste anel ainda.' }));
+    if (!entries.length) ul.appendChild(Object.assign(document.createElement('li'), { className: 'empty-state', textContent: 'Nenhuma opção neste anel ainda.' }));
+    $('addBtn').disabled = entries.length >= LIMIT;
+  }
+
+  function customRow(o) {
+    const sub = o.type === 'keys' ? (o.keys || []).map(E.comboText).join(' › ')
+      : o.type === 'js' ? 'Bookmarklet' + (o.shortcut ? ' · ' + E.comboText(o.shortcut) : '') : 'Ação pronta';
+    const li = row(o.name, o.type === 'keys' ? 'Teclas' : o.type === 'js' ? 'JS' : 'Ação', sub);
+    if (o.type === 'keys') li.append(iconButton('Editar ' + o.name, 'edit', '', () => { openAdd('keys'); editor.edit(o); }));
+    li.append(iconButton('Remover ' + o.name + ' do radial', 'trash', 'danger', async () => {
+      const ctx = (o.ctx || []).filter((c) => c !== ringId);
+      if (!ctx.length && o.type !== 'js') await S.remove(o.id); // bookmarklets continuam salvos nas configurações
+      else await S.save({ ...o, ctx });
+      toast('Removida do radial.');
+      renderList();
+      fillBookmarklets();
+    }));
+    return li;
   }
 
   // ----- Ações prontas (todas as do registro, menos as que o anel já tem) -----
@@ -113,6 +132,8 @@ function row(name, badgeText, sub, muted) {
     });
   }
   $('saveAction').onclick = async () => {
+    const lim = await limitMsg();
+    if (lim) return toast(lim, true);
     const [sid, i] = $('actionSel').value.split('|');
     const a = window.RADIAL_SITES.find((s) => s.id === sid).actions[Number(i)];
     const dup = (await S.list()).some((o) => o.type === 'action' && o.ref && o.ref.site === sid && o.ref.label === a.label && (o.ctx || []).includes(ringId));
@@ -133,6 +154,8 @@ function row(name, badgeText, sub, muted) {
     $('saveBm').classList.toggle('hidden', !free.length);
   }
   $('saveBm').onclick = async () => {
+    const lim = await limitMsg();
+    if (lim) return toast(lim, true);
     const o = await S.get($('bmSel').value);
     if (!o) return;
     await S.save({ id: $('bmSel').value, ...o, ctx: [...(o.ctx || []), ringId] });
@@ -144,7 +167,7 @@ function row(name, badgeText, sub, muted) {
 
   // ----- Atalho de teclado (editor compartilhado, só teclas) -----
   const editor = E.mount($('editor'), {
-    fixed: { id: ringId, name: $('siteName').textContent }, keysOnly: true, toast,
+    fixed: { id: ringId, name: $('siteName').textContent }, keysOnly: true, toast, canAdd: limitMsg,
     onChange: () => { renderList(); }
   });
 

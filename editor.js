@@ -161,7 +161,7 @@
         <input type="text" data-filter placeholder="Filtrar sites…" aria-label="Filtrar sites" autocomplete="off" style="margin-bottom:10px">
         <div class="chips" data-chips role="group"></div>
         <div class="addhost"><input type="text" data-host placeholder="Outro site, ex.: meusite.com.br" aria-label="Outro site" autocomplete="off" inputmode="url"><button class="btn" type="button" data-addhost>Adicionar site</button></div>
-        <p class="help">Sites fora da lista ganham um anel próprio. Cada anel mostra até 12 botões.</p>`;
+        <p class="help">Sites fora da lista ganham um anel próprio. Cada anel mostra até 10 botões, em 2 radiais de 5.</p>`;
       const chips = ctxBox.querySelector('[data-chips]');
       const updateCount = () => {
         const n = chips.querySelectorAll('input:checked').length;
@@ -269,6 +269,7 @@
       const code = codeEl.value.trim();
       // Fora do modo bookmarklet, preserva o atalho que a opção já tinha.
       const sc = bm ? shortcut : (editing && editing.shortcut) || null;
+      if (!editing && opts.canAdd) { const msg = await opts.canAdd(); if (msg) return opts.toast(msg, true); }
       const data = t === 'keys' ? { type: 'keys', name, keys, ctx } : { type: 'js', name, code, ctx, ...(sc ? { shortcut: sc } : {}) };
       try {
         await G.RADIAL_STORE.save({ id: editing && editing.id, t: editing && editing.t, ...data });

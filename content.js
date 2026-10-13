@@ -9,7 +9,8 @@
   const SIZE = 380;          // diâmetro do menu (px)
   const R_OUT = 180;         // raio externo
   const R_IN = 60;           // raio do buraco central
-  const MAX_ITEMS = 12;      // máximo de fatias por anel
+  const MAX_ITEMS = 10;      // máximo de fatias por anel (2 radiais de 5)
+  const PAGE = 5;            // fatias por radial; o centro passa para o próximo grupo
   const IS_MAC = /Mac/i.test(navigator.platform);
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -503,6 +504,7 @@
   let opening = false;  // trava síncrona: evita abrir dois menus ao mesmo tempo
   const segRun = new WeakMap(); // fatia -> ação (assim o clique não depende de eventos falsificáveis)
   let openedBtn = null;     // botão do mouse que abriu o menu e ainda está pressionado: soltar escolhe a fatia
+  let centerSwap = null;    // passa para o próximo grupo (soltar o botão sobre o centro faz o mesmo)
   let armed = null;         // última fatia sob o mouse (só com "manter última opção" ligado)
 
   function el(name, attrs = {}, html) {
@@ -601,9 +603,13 @@
     // Centro: mostra o anel atual e alterna Site <-> Geral.
     const center = el('g', { class: 'rdl-center' + (canSwap ? ' rdl-center-btn' : '') });
     center.appendChild(el('circle', { cx: c, cy: c, r: R_IN - 4 }));
-    const ct = el('text', { x: c, y: c + 4, 'text-anchor': 'middle' });
-    ct.textContent = centerLabel;
-    center.appendChild(ct);
+    const lines = [].concat(centerLabel);
+    lines.forEach((ln, i) => {
+      const ct = el('text', { x: c, y: c + 4 + (i - (lines.length - 1) / 2) * 13, 'text-anchor': 'middle' });
+      ct.textContent = ln;
+      center.appendChild(ct);
+    });
+    centerSwap = canSwap ? onSwap : null;
     // Voltar ao centro desarma a opção (soltar ali não ativa nada).
     center.addEventListener('mouseenter', () => { if (armed) { armed.classList.remove('rdl-armed'); armed = null; } });
     if (canSwap) center.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) onSwap(); });
@@ -638,9 +644,14 @@
     }
     rings.general = [...siteItems(general), ...pick('general')];
     names.general = general.short;
-    Object.keys(rings).forEach((k) => { rings[k] = rings[k].slice(0, MAX_ITEMS); });
-    const hasMain = !!rings.main;
-    let current = hasMain ? 'main' : 'general';
+    // Cada anel tem até 10 opções, em grupos (radiais) de 5. O centro passa de um grupo ao próximo.
+    const pages = [];
+    Object.keys(rings).forEach((k) => {
+      const items = rings[k].slice(0, MAX_ITEMS);
+      const n = Math.ceil(items.length / PAGE);
+      for (let i = 0; i < n; i++) pages.push({ items: items.slice(i * PAGE, (i + 1) * PAGE), label: n > 1 ? [names[k], (i + 1) + '/' + n] : names[k] });
+    });
+    let current = 0;
 
     // Posição: cursor (ou centro da tela), mantida dentro da janela.
     const k = Math.min(1.6, Math.max(0.7, (settings.size || SIZE) / SIZE)); // fator de escala do tamanho escolhido
@@ -668,8 +679,8 @@
 
     const render = () => {
       menu.querySelector('svg')?.remove();
-      menu.appendChild(buildRing(rings[current], names[current], hasMain,
-        () => { current = current === 'main' ? 'general' : 'main'; render(); }));
+      menu.appendChild(buildRing(pages[current].items, pages[current].label, pages.length > 1,
+        () => { current = (current + 1) % pages.length; render(); }));
     };
     const disc = document.createElement('div');
     disc.className = 'rdl-disc';
@@ -687,7 +698,7 @@
   // ---------- Gatilhos configuráveis (página de opções) ----------
   // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null,
   //              size: px, sticky: bool (soltar ativa a última fatia), cancel: 'none'|'right'|'middle'|'back'|'forward' }
-  const DEFAULTS = { mouse: 'none', holdMs: 350, key: null, size: 380, sticky: false, cancel: 'right' };
+  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'right' };
   let settings = { ...DEFAULTS };
   const applySettings = (s) => { settings = { ...DEFAULTS, ...(s || {}) }; };
   try {
@@ -696,11 +707,12 @@
   } catch (_) { /* contexto da extensão invalidado */ }
 
   const BTN = { middle: 1, back: 3, forward: 4 }; // número do botão do mouse
-  const CANCEL_BTN = { right: 2, middle: 1, back: 3, forward: 4 };
+  const CANCEL_BTN = { left: 0, right: 2, middle: 1, back: 3, forward: 4 };
   const isEditable = (t) => !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
   let pressed = false;      // botão direito está pressionado
   let suppressCtx = false;  // engole o menu nativo que viria ao soltar
   let btnDown = null;       // botão de abertura atualmente pressionado
+  let noClickUntil = 0;     // engole o clique que vem depois de cancelar com o botão esquerdo
   const cancelBtn = () => (settings.cancel === 'none' ? null : CANCEL_BTN[settings.cancel] ?? null);
   // Botões que a extensão "possui" agora: o de abrir e, com o menu aberto, o de cancelar.
   const ours = (b) => BTN[settings.mouse] === b || (!!root && cancelBtn() === b);
@@ -711,6 +723,7 @@
     if (root && cancelBtn() === e.button && !(settings.mouse === 'right-hold' && e.button === 2)) {
       e.preventDefault(); e.stopPropagation();
       if (e.button === 2) suppressCtx = true;
+      if (e.button === 0) noClickUntil = Date.now() + 400;
       close();
       return;
     }
@@ -741,7 +754,8 @@
     if (wasOpener && openedBtn === e.button && root) {
       const t = e.composedPath ? e.composedPath()[0] : e.target; // dentro do Shadow DOM o alvo é o hospedeiro
       const seg = t && t.closest && t.closest('.rdl-seg');
-      const run = (seg && segRun.get(seg)) || (settings.sticky && armed && segRun.get(armed));
+      const onCenter = !seg && t && t.closest && t.closest('.rdl-center');
+      const run = (seg && segRun.get(seg)) || (onCenter && centerSwap) || (settings.sticky && armed && segRun.get(armed));
       if (run) { e.preventDefault(); e.stopPropagation(); run(); }
     }
     if (ours(e.button) && e.button !== 2) { e.preventDefault(); e.stopPropagation(); }
@@ -750,6 +764,10 @@
   // Botão do meio/laterais: impede abrir link em nova aba ou voltar/avançar.
   window.addEventListener('auxclick', (e) => {
     if (ours(e.button) || BTN[settings.mouse] === e.button) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  window.addEventListener('click', (e) => {
+    if (Date.now() < noClickUntil) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 
   window.addEventListener('contextmenu', (e) => {

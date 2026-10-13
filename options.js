@@ -108,7 +108,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'none', holdMs: 350, key: null, size: 380, sticky: false, cancel: 'right' };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'right' };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -168,7 +168,7 @@ document.querySelectorAll('input[name="cancelBtn"]').forEach((r) => {
   r.onchange = () => { if (r.checked) { cfg.cancel = r.value; showCfg(); saveCfg(); } };
 });
 $('holdMs').oninput = () => { $('holdOut').textContent = $('holdMs').value + ' ms'; };
-$('holdMs').onchange = () => { cfg.holdMs = Number($('holdMs').value) || 350; showCfg(); saveCfg(); };
+$('holdMs').onchange = () => { cfg.holdMs = Number($('holdMs').value) || 150; showCfg(); saveCfg(); };
 $('clearKey').onclick = () => { cfg.key = null; stopRecording(); showCfg(); saveCfg(); };
 $('chromeKeys').onclick = () => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
 $('recKey').onclick = () => {
