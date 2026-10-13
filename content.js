@@ -750,6 +750,31 @@
   // Janela perdeu o foco com o botão pressionado: zera o estado do "segurar".
   window.addEventListener('blur', () => { pressed = false; btnDown = null; if (hold) { clearTimeout(hold.timer); hold = null; } });
 
+  // Bookmarklets com atalho de teclado: rodam em qualquer página, sem abrir o menu.
+  // Só os metadados ficam aqui; o código é lido pelo background na hora de executar.
+  let shortcuts = [];
+  const loadShortcuts = async () => {
+    try {
+      const all = await chrome.storage.local.get(null);
+      shortcuts = Object.keys(all)
+        .filter((k) => k.startsWith('opt_') && all[k].type === 'js' && all[k].code && all[k].shortcut && all[k].shortcut.code)
+        .map((k) => ({ id: k.slice(4), sc: all[k].shortcut }));
+    } catch (_) { /* contexto da extensão invalidado */ }
+  };
+  loadShortcuts();
+  try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local') loadShortcuts(); }); } catch (_) { /* idem */ }
+
+  window.addEventListener('keydown', (e) => {
+    if (!e.isTrusted || e.repeat || !shortcuts.length) return;
+    const hit = shortcuts.find(({ sc }) => sc.code === e.code && !!sc.ctrl === e.ctrlKey && !!sc.shift === e.shiftKey && !!sc.alt === e.altKey && !!sc.meta === e.metaKey);
+    if (!hit) return;
+    if (isEditable(e.target) && !(hit.sc.ctrl || hit.sc.alt || hit.sc.meta)) return; // não atrapalha a digitação
+    e.preventDefault(); e.stopPropagation();
+    chrome.runtime.sendMessage({ type: 'run-option', id: hit.id })
+      .then((res) => { if (!res || !res.ok) toast((res && res.error) || 'Falha ao executar.', true); })
+      .catch(() => {});
+  }, true);
+
   window.addEventListener('keydown', (e) => {
     const k = settings.key;
     if (!e.isTrusted || !k || !k.code || e.repeat || e.code !== k.code) return;

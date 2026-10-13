@@ -47,6 +47,16 @@
         <textarea id="ed-code" spellcheck="false" placeholder="javascript:(function(){ alert('olá'); })();"></textarea>
         <p class="help">Sem limite de tamanho. Aceita o formato <code>javascript:…</code> de favoritos. Páginas com CSP estrito podem bloquear a execução.</p>
       </div>
+      <div class="field hidden" data-panel="shortcut">
+        <span class="lbl">Atalho do teclado</span>
+        <div class="keys" data-sc></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" type="button" data-rec2>${icon(SVG.record)}<span data-rec2-txt>Gravar atalho</span></button>
+          <button class="btn ghost" type="button" data-clear2>Limpar</button>
+        </div>
+        <p class="help">Roda o bookmarklet em qualquer página, sem abrir o radial. Use Ctrl, Alt ou Cmd para não atrapalhar a digitação.</p>
+      </div>
+      <label class="check hidden" data-inradial-row><input type="checkbox" data-inradial><span>Mostrar também no radial</span></label>
       <div class="field" data-ctx></div>
       <div class="actions">
         <button class="btn primary" type="button" data-save>Salvar</button>
@@ -55,10 +65,13 @@
     const $ = (sel) => root.querySelector(sel);
     const nameEl = $('#ed-name'), codeEl = $('#ed-code');
     const keysBox = $('[data-keys]'), recBtn = $('[data-rec]'), recTxt = $('[data-rec-txt]');
+    const scBox = $('[data-sc]'), rec2Btn = $('[data-rec2]'), rec2Txt = $('[data-rec2-txt]');
+    const bm = !!opts.bookmarklet; // modo bookmarklet: só JavaScript, com atalho e anéis opcionais
 
     let editing = null;      // opção em edição (ou null)
     let keys = [];           // atalhos gravados
-    let recording = false;
+    let recording = null;    // 'keys' | 'shortcut' | null
+    let shortcut = null;     // atalho que roda a opção em qualquer página (bookmarklet)
     let extraCtx = [];       // anéis da opção que não aparecem no formulário (preservados ao editar)
     let hostChips = new Set();
 
@@ -95,28 +108,44 @@
       });
       recTxt.textContent = keys.length ? 'Gravar outro' : 'Gravar atalho';
     }
-    function stopRec() {
-      recording = false;
-      recBtn.classList.remove('recording');
-      recTxt.textContent = keys.length ? 'Gravar outro' : 'Gravar atalho';
+    function renderShortcut() {
+      scBox.textContent = '';
+      const k = document.createElement('kbd');
+      k.className = shortcut ? '' : 'empty';
+      k.textContent = shortcut ? comboText(shortcut) : 'Nenhum atalho';
+      scBox.appendChild(k);
+      rec2Txt.textContent = shortcut ? 'Gravar outro' : 'Gravar atalho';
     }
-    recBtn.onclick = () => {
+    function stopRec() {
+      recording = null;
+      recBtn.classList.remove('recording');
+      rec2Btn.classList.remove('recording');
+      recTxt.textContent = keys.length ? 'Gravar outro' : 'Gravar atalho';
+      rec2Txt.textContent = shortcut ? 'Gravar outro' : 'Gravar atalho';
+    }
+    const startRec = (kind, btn, txt) => {
       if (recording) { stopRec(); return; }
-      recording = true;
-      recBtn.classList.add('recording');
-      recTxt.textContent = 'Faça o atalho… (Esc cancela)';
+      recording = kind;
+      btn.classList.add('recording');
+      txt.textContent = 'Faça o atalho… (Esc cancela)';
     };
-    recBtn.onblur = stopRec;
+    recBtn.onclick = () => startRec('keys', recBtn, recTxt);
+    rec2Btn.onclick = () => startRec('shortcut', rec2Btn, rec2Txt);
+    recBtn.onblur = rec2Btn.onblur = stopRec;
     $('[data-clear]').onclick = () => { keys = []; stopRec(); renderKeys(); };
+    $('[data-clear2]').onclick = () => { shortcut = null; stopRec(); renderShortcut(); };
     document.addEventListener('keydown', (e) => {
       if (!recording) return;
       e.preventDefault(); e.stopPropagation();
       if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return; // espera a tecla principal
       const bare = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+      const kind = recording;
       stopRec();
       if (e.key === 'Escape' && bare) return;
+      const combo = { key: e.key, code: e.code, keyCode: e.keyCode, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey };
+      if (kind === 'shortcut') { shortcut = combo; renderShortcut(); return; }
       if (keys.length >= 10) return opts.toast('No máximo 10 atalhos em sequência.', true);
-      keys.push({ key: e.key, code: e.code, keyCode: e.keyCode, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey });
+      keys.push(combo);
       renderKeys();
     }, true);
 
@@ -169,11 +198,20 @@
       ctxBox.chips = chips;
     }
 
+    const inRadial = $('[data-inradial]');
+    const syncRadial = () => { ctxBox.classList.toggle('hidden', bm && !inRadial.checked); };
+    inRadial.onchange = () => {
+      syncRadial();
+      // Marcou "no radial" sem escolher anel: começa pelo Geral.
+      if (bm && !fixed && inRadial.checked && !ctxBox.chips.querySelector('input:checked')) { setCtx(['general']); }
+    };
     function getCtx() {
+      if (bm && !inRadial.checked) return [];
       if (fixed) return [fixed.id, ...(extraGeneral.checked ? ['general'] : []), ...extraCtx];
       return [...ctxBox.chips.querySelectorAll('input:checked')].map((c) => c.value).concat(extraCtx);
     }
     function setCtx(list) {
+      if (bm) { inRadial.checked = list.length > 0; syncRadial(); }
       if (fixed) {
         extraGeneral.checked = list.includes('general');
         extraCtx = list.filter((c) => c !== fixed.id && c !== 'general');
@@ -190,20 +228,24 @@
     function reset(defaultCtx) {
       editing = null;
       keys = [];
+      shortcut = null;
       stopRec();
       renderKeys();
-      setType('keys');
+      renderShortcut();
+      setType(bm ? 'js' : 'keys');
       nameEl.value = '';
       codeEl.value = '';
-      setCtx(defaultCtx || (fixed ? [fixed.id] : ['general']));
-      $('[data-save]').textContent = 'Salvar';
+      setCtx(defaultCtx || (fixed ? [fixed.id] : bm ? [] : ['general']));
+      $('[data-save]').textContent = bm ? 'Salvar bookmarklet' : 'Salvar';
       $('[data-cancel]').classList.add('hidden');
     }
     function edit(o) {
       editing = o;
       keys = (o.keys || []).map((k) => ({ ...k }));
+      shortcut = o.shortcut ? { ...o.shortcut } : null;
       stopRec();
       renderKeys();
+      renderShortcut();
       setType(o.type === 'js' ? 'js' : 'keys');
       nameEl.value = o.name || '';
       codeEl.value = o.code || '';
@@ -222,18 +264,32 @@
       if (!name) return opts.toast('Dê um nome à opção.', true);
       if (t === 'keys' && !keys.length) return opts.toast('Grave ao menos um atalho.', true);
       if (t === 'js' && !codeEl.value.trim()) return opts.toast('O código está vazio.', true);
-      if (!ctx.length) return opts.toast('Escolha ao menos um anel.', true);
-      const data = t === 'keys' ? { type: 'keys', name, keys, ctx } : { type: 'js', name, code: codeEl.value.trim(), ctx };
+      if (bm && !ctx.length && !shortcut) return opts.toast('Grave um atalho ou marque "Mostrar também no radial".', true);
+      if (!bm && !ctx.length) return opts.toast('Escolha ao menos um anel.', true);
+      const code = codeEl.value.trim();
+      // Fora do modo bookmarklet, preserva o atalho que a opção já tinha.
+      const sc = bm ? shortcut : (editing && editing.shortcut) || null;
+      const data = t === 'keys' ? { type: 'keys', name, keys, ctx } : { type: 'js', name, code, ctx, ...(sc ? { shortcut: sc } : {}) };
       try {
         await G.RADIAL_STORE.save({ id: editing && editing.id, t: editing && editing.t, ...data });
       } catch (e) {
         return opts.toast('Não foi possível salvar: ' + e.message, true);
       }
-      reset(fixed ? undefined : ctx);
+      reset(fixed || bm ? undefined : ctx);
       opts.toast('Salvo.');
       opts.onChange();
     };
 
+    if (bm) {
+      root.querySelector('.seg').classList.add('hidden');
+      $('[data-panel="keys"]').classList.add('hidden');
+      $('[data-panel="shortcut"]').classList.remove('hidden');
+      $('[data-inradial-row]').classList.remove('hidden');
+      root.querySelector('label[for="ed-name"]').textContent = 'Nome do bookmarklet';
+      root.querySelector('label[for="ed-code"]').textContent = 'Conteúdo (código)';
+    }
+    if (opts.noJs) root.querySelector('input[value="js"]').closest('label').classList.add('hidden');
+    renderShortcut();
     reset();
     return { edit, reset };
   }

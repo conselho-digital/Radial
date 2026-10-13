@@ -21,6 +21,7 @@ Extensão Chrome (Manifest V3) com menu radial contextual no cursor.
 ## Opções do radial
 Dois tipos, criados pelo popup ou pela página de configurações:
 - **Atalho de teclado:** grave uma ou mais combinações; o radial as pressiona por você (só atalhos tratados pelo próprio site).
+- **Bookmarklet com atalho:** na página de configurações, preencha nome, conteúdo e grave um atalho de teclado; ele roda em qualquer página. Opcionalmente também aparece no radial.
 - **JavaScript:** código/bookmarklet, sem limite de 8 KB (guardado em `chrome.storage.local`, não sincroniza entre dispositivos). Bookmarklets antigos (`sync`) são migrados sozinhos.
 
 ## Segurança

@@ -47,6 +47,7 @@ function initTheme() {
 // ---------- Opções do radial ----------
 const E = window.RADIAL_EDITOR;
 let editor = null;
+let bmEditor = null;
 
 function iconButton(label, name, cls, onclick) {
   const b = document.createElement('button');
@@ -87,12 +88,14 @@ async function render() {
     const sub = document.createElement('div');
     sub.className = 'help';
     sub.style.marginTop = '2px';
-    sub.textContent = o.type === 'js' ? (o.code || '').length + ' caracteres de código' : (o.keys || []).map(E.comboText).join(' › ');
+    sub.textContent = o.type === 'js'
+      ? (o.code || '').length + ' caracteres de código' + (o.shortcut ? ' · atalho ' + E.comboText(o.shortcut) : '')
+      : (o.keys || []).map(E.comboText).join(' › ');
     const tags = document.createElement('div');
     tags.className = 'tags';
     (o.ctx || []).forEach((c) => tags.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: ringName(c) })));
     info.append(head, sub, tags);
-    const edit = iconButton('Editar ' + o.name, 'edit', '', () => editor.edit(o));
+    const edit = iconButton('Editar ' + o.name, 'edit', '', () => (o.type === 'js' ? bmEditor : editor).edit(o));
     const del = iconButton('Excluir ' + o.name, 'trash', 'danger', async () => {
       if (!confirm('Excluir "' + (o.name || 'sem nome') + '"?')) return;
       await window.RADIAL_STORE.remove(o.id);
@@ -192,8 +195,9 @@ initTheme();
   await window.RADIAL_STORE.migrate();
   editor = E.mount($('editor'), {
     siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: s.name })),
-    toast, onChange: render
+    toast, onChange: render, noJs: true
   });
+  bmEditor = E.mount($('bmEditor'), { bookmarklet: true, siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: s.name })), toast, onChange: render });
   const r = await chrome.storage.sync.get('settings');
   cfg = { ...DEFAULTS, ...(r.settings || {}) };
   showCfg();
