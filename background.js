@@ -1,4 +1,5 @@
-// Service worker: escuta o atalho, avisa o content script e executa bookmarklets.
+// Service worker: escuta o atalho, avisa o content script e executa as opções JavaScript.
+importScripts('store.js');
 
 const OPEN_MSG = { type: 'open-radial' };
 
@@ -26,7 +27,19 @@ chrome.commands.onCommand.addListener((command, tab) => {
   if (command === 'open-radial') openRadial(tab);
 });
 
-chrome.action.onClicked.addListener((tab) => openRadial(tab));
+// Abas já abertas não recebem o content script de uma extensão recém-instalada/atualizada:
+// injeta nelas para o menu aparecer sem precisar recarregar a página.
+async function injectIntoOpenTabs() {
+  const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+  await Promise.all(tabs.map((t) =>
+    chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['sites.js', 'radial-css.js', 'content.js'] }).catch(() => {})));
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  RADIAL_STORE.migrate();
+  injectIntoOpenTabs();
+});
+chrome.runtime.onStartup.addListener(() => RADIAL_STORE.migrate());
 
 // Remove "javascript:" do começo e decodifica %XX (formato de favorito colado da barra de endereço).
 // Só decodifica quando não há espaços: código escrito à mão pode conter "%" de verdade.
@@ -83,13 +96,19 @@ async function runBookmarklet(tabId, raw) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Só aceita pedidos desta extensão, vindos do frame principal de uma aba.
-  if (sender.id !== chrome.runtime.id || !sender.tab || sender.frameId !== 0) return;
-  if (msg && msg.type === 'run-bookmarklet' && Number.isInteger(msg.index)) {
+  if (sender.id !== chrome.runtime.id || !msg) return;
+
+  // Vindo do popup da extensão (sem aba): abre o radial na aba pedida.
+  if (msg.type === 'open-radial-tab' && !sender.tab && Number.isInteger(msg.tabId)) {
+    openRadial({ id: msg.tabId }).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // Vindo do content script (só o frame principal de uma aba): executa uma opção JavaScript.
+  if (msg.type === 'run-option' && sender.tab && sender.frameId === 0 && typeof msg.id === 'string') {
     // O código nunca trafega pelo content script: é lido aqui, do armazenamento.
-    const key = 'bm_' + msg.index;
-    chrome.storage.sync.get(key)
-      .then((r) => (r[key] && r[key].code ? runBookmarklet(sender.tab.id, r[key].code) : { ok: false, error: 'Bookmarklet não encontrado.' }))
+    RADIAL_STORE.get(msg.id)
+      .then((o) => (o && o.type === 'js' && o.code ? runBookmarklet(sender.tab.id, o.code) : { ok: false, error: 'Opção não encontrada.' }))
       .then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true; // resposta assíncrona

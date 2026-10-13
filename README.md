@@ -7,26 +7,30 @@ Extensão Chrome (Manifest V3) com menu radial contextual no cursor.
 2. Abra `chrome://extensions` e ative **Modo do desenvolvedor**.
 3. Clique em **Carregar sem compactação** e escolha a pasta.
 4. Defina o atalho em `chrome://extensions/shortcuts` (padrão: `Alt+Shift+R`).
-5. Mova o mouse na página e use o atalho (ou clique no ícone da extensão).
+5. Mova o mouse na página e use o atalho ou o gatilho do mouse (veja Uso).
 
 ## Uso
-- Gatilhos (página de opções): segurar botão direito (solte sobre a fatia para escolher), botão do meio, botões laterais, tecla própria. O atalho do Chrome (`chrome://extensions/shortcuts`) continua disponível.
-- Clique numa fatia para executar. `Esc` ou clique fora fecha.
-- Centro do anel alterna **Contexto ⇄ Geral**.
-- 50 sites reconhecidos, cada um com suas ferramentas (veja `sites.js`). Qualquer outro site usa o anel Geral.
+- Clicar no ícone da extensão abre as opções **do site atual** (adicionar/editar/excluir opções do radial, com botão Salvar) e o botão "Abrir radial agora".
+- Gatilhos (página de configurações): segurar botão direito, botão do meio, botões laterais, tecla própria. O atalho do Chrome (`chrome://extensions/shortcuts`) continua disponível.
+- **Soltar para ativar:** com um botão do mouse como gatilho, segure, arraste até a fatia e solte. Soltar no centro/fora deixa o menu aberto para clicar.
+- **Manter última opção:** soltar ativa a última fatia em que o mouse passou (destacada); voltar ao centro desarma.
+- **Botão para cancelar:** outro botão do mouse que fecha o radial sem ativar nada.
+- **Tamanho** do radial ajustável (280–600 px).
+- Centro do anel alterna **Site ⇄ Geral**. 50 sites reconhecidos (`sites.js`); qualquer outro site tem anel próprio por domínio, criado ao adicionar a primeira opção.
 
-## Bookmarklets
-Abra as opções da extensão, cadastre índice (1–64), nome, código e os anéis
-onde o botão aparece. Salvos em `chrome.storage.sync` como `bm_<índice>`.
+## Opções do radial
+Dois tipos, criados pelo popup ou pela página de configurações:
+- **Atalho de teclado:** grave uma ou mais combinações; o radial as pressiona por você (só atalhos tratados pelo próprio site).
+- **JavaScript:** código/bookmarklet, sem limite de 8 KB (guardado em `chrome.storage.local`, não sincroniza entre dispositivos). Bookmarklets antigos (`sync`) são migrados sozinhos.
 
 ## Segurança
 - Menu e avisos ficam em Shadow DOM; a página não consegue estilizá-los.
 - Só eventos reais (`isTrusted`) abrem o menu ou escolhem uma fatia.
-- Bookmarklets: o código é lido pelo background (nunca passa pelo content script) e só roda por pedido da própria extensão.
+- Opções JavaScript: o código é lido pelo background (nunca passa pelo content script) e só roda por pedido da própria extensão.
 
 ## Limitações
 - Ações de Planilhas/Docs/Teams dependem da interface dos sites (best effort).
-- Bookmarklets podem ser bloqueados por CSP estrito da página.
+- Opções JavaScript podem ser bloqueadas por CSP estrito da página.
 - Só o frame principal; o atalho é o do Chrome (não é "segurar botão direito").
 
 ## Adicionar/editar um site
