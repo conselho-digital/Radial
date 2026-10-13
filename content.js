@@ -6,6 +6,8 @@
   if (window.__radialLoaded && window.__radialLoaded()) return;
   window.__radialLoaded = () => { try { return !!chrome.runtime.id; } catch (_) { return false; } };
 
+  const I = window.RADIAL_I18N;
+  const tr = (s, v) => I.t(s, v);
   const SIZE = 380;          // diâmetro do menu (px)
   const R_OUT = 180;         // raio externo
   const R_IN = 60;           // raio do buraco central
@@ -439,11 +441,11 @@
       const text = expand(step.copy);
       if (!text) return false;
       await copyText(text);
-      toast('Copiado');
+      toast(tr('Copied'));
       return true;
     }
     if (step.fn === 'reload') { location.reload(); return true; }
-    if (step.fn === 'copyUrl') { await copyText(location.href); toast('URL copiada'); return true; }
+    if (step.fn === 'copyUrl') { await copyText(location.href); toast(tr('URL copied')); return true; }
     if (step.fn === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return true; }
     if (step.fn === 'dark') { toggleDarkMode(); return true; }
     return false;
@@ -477,12 +479,12 @@
   function optionItem(o) {
     const act = o.type === 'action' ? findAction(o.ref) : null;
     return {
-      id: 'opt-' + o.id, label: o.name || 'Opção', icon: act ? act.icon : o.type === 'keys' ? 'keyboard' : 'code',
+      id: 'opt-' + o.id, label: (act ? I.label(act.label) : o.name) || tr('Option'), icon: act ? act.icon : o.type === 'keys' ? 'keyboard' : 'code',
       run: async () => {
-        if (act) { if (!(await runStep(act.do))) toast('Não encontrei "' + act.label + '" nesta página.', true); return; }
+        if (act) { if (!(await runStep(act.do))) toast(tr('Could not find "{name}" on this page.', { name: I.label(act.label) }), true); return; }
         if (o.type === 'keys') { await runKeys(o.keys); return; }
         const res = await chrome.runtime.sendMessage({ type: 'run-option', id: o.id });
-        if (!res || !res.ok) toast((res && res.error) || 'Falha ao executar.', true);
+        if (!res || !res.ok) toast((res && res.error) || tr('Failed to run.'), true);
       }
     };
   }
@@ -490,10 +492,10 @@
   // Transforma as ações do registro em itens do anel.
   function siteItems(site) {
     return site.actions.map((a, i) => ({
-      id: site.id + '-' + i, label: a.label, icon: a.icon,
+      id: site.id + '-' + i, label: I.label(a.label), icon: a.icon,
       run: async () => {
         const ok = await runStep(a.do);
-        if (!ok) toast('Não encontrei "' + a.label + '" nesta página.', true);
+        if (!ok) toast(tr('Could not find "{name}" on this page.', { name: I.label(a.label) }), true);
       }
     }));
   }
@@ -625,6 +627,7 @@
   }
 
   async function build(opts) {
+    await I.ready;
     const site = detectSite();
     const general = window.RADIAL_SITES.find((s) => s.id === 'general');
 
@@ -636,14 +639,14 @@
     const names = {};
     if (site.id !== 'general') {
       rings.main = [...siteItems(site), ...pick(site.id, hostRing)];
-      names.main = site.short;
+      names.main = I.label(site.short);
     } else if (pick(hostRing).length) {
       rings.main = pick(hostRing);
       const h = hostKey();
       names.main = h.length > 10 ? h.slice(0, 9) + '…' : h;
     }
     rings.general = [...siteItems(general), ...pick('general')];
-    names.general = general.short;
+    names.general = I.label(general.short);
     // Cada anel tem até 10 opções, em grupos (radiais) de 5. O centro passa de um grupo ao próximo.
     const pages = [];
     Object.keys(rings).forEach((k) => {
@@ -698,7 +701,7 @@
   // ---------- Gatilhos configuráveis (página de opções) ----------
   // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null,
   //              size: px, sticky: bool (soltar ativa a última fatia), cancel: 'none'|'right'|'middle'|'back'|'forward' }
-  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'right' };
+  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left' };
   let settings = { ...DEFAULTS };
   const applySettings = (s) => { settings = { ...DEFAULTS, ...(s || {}) }; };
   try {
@@ -798,7 +801,7 @@
     if (isEditable(e.target) && !(hit.sc.ctrl || hit.sc.alt || hit.sc.meta)) return; // não atrapalha a digitação
     e.preventDefault(); e.stopPropagation();
     chrome.runtime.sendMessage({ type: 'run-option', id: hit.id })
-      .then((res) => { if (!res || !res.ok) toast((res && res.error) || 'Falha ao executar.', true); })
+      .then((res) => { if (!res || !res.ok) toast((res && res.error) || tr('Failed to run.'), true); })
       .catch(() => {});
   }, true);
 

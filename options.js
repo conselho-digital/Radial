@@ -1,6 +1,8 @@
 // Página de configurações: tema, gatilhos do menu (chrome.storage.sync) e opções do radial (chrome.storage.local).
 // Sites vêm de sites.js (window.RADIAL_SITES): id + nome.
-const CTX_NAMES = Object.fromEntries(window.RADIAL_SITES.map((s) => [s.id, s.name]));
+const I = window.RADIAL_I18N;
+const t = (s, v) => I.t(s, v);
+const CTX_NAMES = Object.fromEntries(window.RADIAL_SITES.map((s) => [s.id, I.label(s.name)]));
 const $ = (id) => document.getElementById(id);
 const ICON = {
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
@@ -71,7 +73,7 @@ async function render() {
     li.className = 'empty-state';
     li.append(svgIcon(ICON.code));
     const p = document.createElement('p');
-    p.textContent = 'Nenhuma opção salva ainda. Adicione a primeira acima.';
+    p.textContent = t('No options saved yet. Add the first one above.');
     li.append(p);
     ul.appendChild(li);
   }
@@ -83,23 +85,23 @@ async function render() {
     const head = document.createElement('div');
     head.className = 'item-head';
     head.append(
-      Object.assign(document.createElement('b'), { textContent: o.name || '(sem nome)' }),
-      Object.assign(document.createElement('span'), { className: 'badge', textContent: o.type === 'js' ? 'JavaScript' : 'Teclas' }));
+      Object.assign(document.createElement('b'), { textContent: (o.type === 'action' && o.ref ? I.label(o.ref.label) : o.name) || '—' }),
+      Object.assign(document.createElement('span'), { className: 'badge', textContent: o.type === 'js' ? 'JavaScript' : o.type === 'keys' ? t('Keys') : t('Action') }));
     const sub = document.createElement('div');
     sub.className = 'help';
     sub.style.marginTop = '2px';
     sub.textContent = o.type === 'js'
-      ? (o.code || '').length + ' caracteres de código' + (o.shortcut ? ' · atalho ' + E.comboText(o.shortcut) : '')
-      : (o.keys || []).map(E.comboText).join(' › ');
+      ? t('{n} characters of code', { n: (o.code || '').length }) + (o.shortcut ? ' · ' + t('shortcut') + ' ' + E.comboText(o.shortcut) : '')
+      : o.type === 'keys' ? (o.keys || []).map(E.comboText).join(' › ') : t('Ready-made action');
     const tags = document.createElement('div');
     tags.className = 'tags';
     (o.ctx || []).forEach((c) => tags.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: ringName(c) })));
     info.append(head, sub, tags);
-    const edit = iconButton('Editar ' + o.name, 'edit', '', () => (o.type === 'js' ? bmEditor : editor).edit(o));
-    const del = iconButton('Excluir ' + o.name, 'trash', 'danger', async () => {
-      if (!confirm('Excluir "' + (o.name || 'sem nome') + '"?')) return;
+    const edit = iconButton(t('Edit {name}', { name: o.name }), 'edit', '', () => (o.type === 'js' ? bmEditor : editor).edit(o));
+    const del = iconButton(t('Delete {name}', { name: o.name }), 'trash', 'danger', async () => {
+      if (!confirm(t('Delete "{name}"?', { name: o.name || '—' }))) return;
       await window.RADIAL_STORE.remove(o.id);
-      toast('Opção excluída.');
+      toast(t('Option deleted.'));
       render();
     });
     li.append(info, edit, del);
@@ -108,7 +110,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'right' };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left' };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -121,9 +123,9 @@ function keyText(k) {
 async function saveCfg() {
   try {
     await chrome.storage.sync.set({ settings: cfg });
-    toast('Salvo.');
+    toast(t('Saved.'));
   } catch (e) {
-    toast('Não foi possível salvar: ' + e.message, true);
+    toast(t('Could not save: {msg}', { msg: e.message }), true);
   }
 }
 
@@ -141,15 +143,15 @@ function showCfg() {
     r.checked = r.value === cfg.cancel;
     r.disabled = r.value !== 'none' && r.value === trig; // o botão do gatilho não pode cancelar
   });
-  const t = keyText(cfg.key);
-  $('keyShow').textContent = t || 'Nenhuma';
-  $('keyShow').className = t ? '' : 'empty';
+  const txt = keyText(cfg.key);
+  $('keyShow').textContent = txt || t('None');
+  $('keyShow').className = txt ? '' : 'empty';
 }
 
 function stopRecording() {
   recording = false;
   $('recKey').classList.remove('recording');
-  $('recTxt').textContent = 'Gravar tecla';
+  $('recTxt').textContent = t('Record key');
 }
 
 document.querySelectorAll('input[name="mouseTrig"]').forEach((r) => {
@@ -175,7 +177,7 @@ $('recKey').onclick = () => {
   if (recording) { stopRecording(); return; }
   recording = true;
   $('recKey').classList.add('recording');
-  $('recTxt').textContent = 'Pressione a tecla… (Esc cancela)';
+  $('recTxt').textContent = t('Press the key… (Esc cancels)');
 };
 $('recKey').onblur = stopRecording;
 
@@ -190,14 +192,19 @@ window.addEventListener('keydown', (e) => {
 }, true);
 
 // ---------- Início ----------
-initTheme();
 (async () => {
+  await I.ready;
+  I.apply();
+  const sel = $('lang');
+  I.LANGS.forEach(([c, n]) => sel.appendChild(Object.assign(document.createElement('option'), { value: c, textContent: n, selected: c === I.lang })));
+  sel.onchange = async () => { await I.setLang(sel.value); location.reload(); };
+  initTheme();
   await window.RADIAL_STORE.migrate();
   editor = E.mount($('editor'), {
-    siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: s.name })),
+    siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: I.label(s.name) })),
     toast, onChange: render, noJs: true
   });
-  bmEditor = E.mount($('bmEditor'), { bookmarklet: true, siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: s.name })), toast, onChange: render });
+  bmEditor = E.mount($('bmEditor'), { bookmarklet: true, siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: I.label(s.name) })), toast, onChange: render });
   const r = await chrome.storage.sync.get('settings');
   cfg = { ...DEFAULTS, ...(r.settings || {}) };
   showCfg();

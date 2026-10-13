@@ -1,7 +1,9 @@
 // Service worker: escuta o atalho, avisa o content script e executa as opções JavaScript.
-importScripts('store.js');
+importScripts('store.js', 'i18n-labels.js', 'i18n-ui.js', 'i18n.js');
+const t = (s, v) => RADIAL_I18N.t(s, v);
 
 const OPEN_MSG = { type: 'open-radial' };
+const CONTENT_FILES = ['sites.js', 'i18n-labels.js', 'i18n-ui.js', 'i18n.js', 'radial-css.js', 'content.js'];
 
 // Abre o menu na aba ativa. Se o content script ainda não existe na aba
 // (aba aberta antes da instalação), injeta e tenta de novo.
@@ -14,7 +16,7 @@ async function openRadial(tab) {
     await chrome.tabs.sendMessage(tab.id, OPEN_MSG);
   } catch (_) {
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['sites.js', 'radial-css.js', 'content.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES });
       await chrome.tabs.sendMessage(tab.id, OPEN_MSG);
     } catch (e) {
       // Páginas internas (chrome://, Web Store) não aceitam injeção.
@@ -31,8 +33,8 @@ chrome.commands.onCommand.addListener((command, tab) => {
 // injeta nelas para o menu aparecer sem precisar recarregar a página.
 async function injectIntoOpenTabs() {
   const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
-  await Promise.all(tabs.map((t) =>
-    chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['sites.js', 'radial-css.js', 'content.js'] }).catch(() => {})));
+  await Promise.all(tabs.map((tab) =>
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES }).catch(() => {})));
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -56,13 +58,13 @@ function normalizeBookmarklet(raw) {
 
 // Roda o código no mundo MAIN da página (acesso às variáveis da própria página).
 // 1) eval indireto; 2) se a CSP/Trusted Types bloquear o eval, tag <script> inline;
-// 3) se a CSP bloquear também, chrome.userScripts (não sofre CSP; exige ligar "Permitir scripts do usuário").
+// 3) se a CSP bloquear também, avalia pelo depurador do Chrome (chrome.debugger), que ignora a CSP da página.
 // Erros do próprio bookmarklet NÃO disparam nova tentativa (evita rodar duas vezes).
 // Favoritos copiados da barra de endereço podem trazer %60, %22… no meio do código: se o código
 // não compila e tem escapes %XX, tenta de novo com os escapes decodificados.
 async function runBookmarklet(tabId, raw) {
   const code = normalizeBookmarklet(raw);
-  if (!code) return { ok: false, error: 'Bookmarklet vazio.' };
+  if (!code) return { ok: false, error: t('Empty bookmarklet.') };
   const [res] = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
@@ -70,7 +72,7 @@ async function runBookmarklet(tabId, raw) {
     func: async (src) => {
       const BLOCKED = /unsafe-eval|content security policy|trustedscript|trusted type/i;
       const unescape = (t) => t.replace(/(?:%[0-9a-f]{2})+/gi, (m) => { try { return decodeURIComponent(m); } catch (_) { return m; } });
-      const fail = (e) => ({ ok: false, error: 'Erro no bookmarklet: ' + (e && e.message ? e.message : e) });
+      const fail = (e) => ({ ok: false, err: String(e && e.message ? e.message : e) });
       try {
         (0, eval)(src);
         return { ok: true };
@@ -92,29 +94,46 @@ async function runBookmarklet(tabId, raw) {
         s.remove();
         await new Promise((r) => setTimeout(r, 60));
       } catch (e) {
-        return { ok: false, blocked: true, error: 'Bloqueado pela página: ' + (e && e.message ? e.message : e) };
+        return { ok: false, blocked: true, err: String(e && e.message ? e.message : e) };
       } finally {
         document.removeEventListener('securitypolicyviolation', onViolation);
       }
-      return violated ? { ok: false, blocked: true, error: 'Bloqueado pela política de segurança (CSP) desta página.' } : { ok: true };
+      return violated ? { ok: false, blocked: true, csp: true } : { ok: true };
     }
   });
-  const out = (res && res.result) || { ok: false, error: 'Sem resposta da página.' };
-  if (out.blocked) return runWithUserScripts(tabId, code, out);
+  const out = (res && res.result) || { ok: false, error: t('No response from the page.') };
+  if (out.blocked) return runWithDebugger(tabId, code, out);
+  if (out.err) return { ok: false, error: t('Bookmarklet error: {msg}', { msg: out.err }) };
   return out;
 }
 
-// Último recurso para páginas com CSP estrito.
-async function runWithUserScripts(tabId, code, blockedResult) {
-  if (!chrome.userScripts || !chrome.userScripts.execute) {
-    return { ok: false, error: blockedResult.error + ' Para contornar: em chrome://extensions > Radial > Detalhes, ligue "Permitir scripts do usuário" (Chrome 135+).' };
+// Último recurso para páginas com CSP estrito (eval e <script> inline bloqueados): o depurador do Chrome
+// avalia o código fora das regras da página. O Chrome mostra o aviso "depurando este navegador" só
+// enquanto está anexado; soltamos logo após rodar (o código continua ativo na página).
+async function runWithDebugger(tabId, code, blockedResult) {
+  const target = { tabId };
+  const unescape = (t) => t.replace(/(?:%[0-9a-f]{2})+/gi, (m) => { try { return decodeURIComponent(m); } catch (_) { return m; } });
+  try {
+    await chrome.debugger.attach(target, '1.3');
+  } catch (e) {
+    const why = blockedResult.csp ? t('Blocked by this page security policy (CSP).') : t('Blocked by the page: {msg}', { msg: blockedResult.err });
+    return { ok: false, error: why + ' (' + (e && e.message ? e.message : e) + ')' };
   }
   try {
-    // Mesmo tratamento de %XX: o código roda dentro de try para não derrubar a página.
-    await chrome.userScripts.execute({ target: { tabId }, world: 'MAIN', injectImmediately: true, js: [{ code }] });
+    const evaluate = (expression) => chrome.debugger.sendCommand(target, 'Runtime.evaluate',
+      { expression, userGesture: true, allowUnsafeEvalBlockedByCSP: true, replMode: false });
+    let r = await evaluate(code);
+    const syntax = (x) => x.exceptionDetails && x.exceptionDetails.exception && x.exceptionDetails.exception.className === 'SyntaxError';
+    if (syntax(r) && /%[0-9a-f]{2}/i.test(code)) r = await evaluate(unescape(code));
+    if (r.exceptionDetails) {
+      const d = r.exceptionDetails;
+      return { ok: false, error: t('Bookmarklet error: {msg}', { msg: (d.exception && (d.exception.description || d.exception.value)) || d.text }) };
+    }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: blockedResult.error + ' (' + (e && e.message ? e.message : e) + ') Ligue "Permitir scripts do usuário" nos detalhes da extensão.' };
+    return { ok: false, error: String(e && e.message || e) };
+  } finally {
+    chrome.debugger.detach(target).catch(() => {});
   }
 }
 
@@ -131,7 +150,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'run-option' && sender.tab && sender.frameId === 0 && typeof msg.id === 'string') {
     // O código nunca trafega pelo content script: é lido aqui, do armazenamento.
     RADIAL_STORE.get(msg.id)
-      .then((o) => (o && o.type === 'js' && o.code ? runBookmarklet(sender.tab.id, o.code) : { ok: false, error: 'Opção não encontrada.' }))
+      .then((o) => (o && o.type === 'js' && o.code ? runBookmarklet(sender.tab.id, o.code) : { ok: false, error: t('Option not found.') }))
       .then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true; // resposta assíncrona

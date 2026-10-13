@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Radial",
-  "version": "1.5.0",
-  "description": "Menu radial contextual no cursor: ações por site (Sheets, Docs, Teams) e bookmarklets personalizados.",
-  "permissions": ["storage", "unlimitedStorage", "scripting", "tabs", "userScripts"],
+  "version": "1.6.0",
+  "description": "Contextual radial menu at the cursor: per-site actions, recorded shortcuts and your own bookmarklets.",
+  "permissions": ["storage", "unlimitedStorage", "scripting", "tabs", "debugger"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
@@ -11,7 +11,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["sites.js", "radial-css.js", "content.js"],
+      "js": ["sites.js", "i18n-labels.js", "i18n-ui.js", "i18n.js", "radial-css.js", "content.js"],
       "run_at": "document_idle"
     }
   ],
@@ -20,11 +20,11 @@
       "suggested_key": {
         "default": "Alt+Shift+R"
       },
-      "description": "Abrir o menu radial no cursor"
+      "description": "Open the radial menu at the cursor"
     }
   },
   "action": {
-    "default_title": "Opções do radial neste site",
+    "default_title": "Radial options for this site",
     "default_popup": "popup.html"
   },
   "options_ui": {

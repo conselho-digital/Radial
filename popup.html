@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,39 +25,34 @@
       <circle cx="24" cy="24" r="5" fill="#2563eb"/>
     </svg>
     <div class="site"><b id="siteName">Radial</b><span id="siteSub"></span></div>
-    <button class="btn icon" id="openOpts" type="button" title="Todas as configurações" aria-label="Todas as configurações">
+    <button class="btn icon" id="openOpts" type="button" title="All settings" aria-label="All settings">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
   </header>
 
-  <div id="unsupported" class="note hidden">Esta página (chrome://, loja de extensões, visualizador de PDF…) não aceita o radial. Abra um site comum para adicionar opções.</div>
+  <div id="unsupported" class="note hidden">This page (chrome://, extension store, PDF viewer…) does not support Radial. Open a regular website to add options.</div>
 
   <main id="main">
-    <section class="card">
-      <div class="card-head">
-        <h2>Opções do radial</h2>
-        <p class="lead" id="savedLead"></p>
-      </div>
-      <ul class="list" id="list"></ul>
-      <div class="actions" style="margin-top:12px">
-        <button class="btn primary" id="addBtn" type="button">
-          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Adicionar opção</button>
-      </div>
-    </section>
+    <div id="rings"></div>
+    <div class="actions" style="margin:0 0 12px">
+      <button class="btn primary" id="addBtn" type="button">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add option</span></button>
+    </div>
 
     <section class="card hidden" id="addCard" aria-labelledby="h-add">
-      <div class="card-head"><h2 id="h-add">Nova opção</h2></div>
-      <label class="lbl" for="kind">O que adicionar</label>
+      <div class="card-head"><h2 id="h-add">New option</h2></div>
+      <label class="lbl" for="kind">What to add</label>
       <select id="kind">
-        <option value="action">Ação pronta</option>
-        <option value="keys">Atalho de teclado (gravar)</option>
-        <option value="bm">Bookmarklet salvo</option>
+        <option value="action">Ready-made action</option>
+        <option value="keys">Keyboard shortcut (record)</option>
+        <option value="bm">Saved bookmarklet</option>
       </select>
 
       <div class="field" id="pAction">
-        <label class="lbl" for="actionSel">Ação</label>
-        <select id="actionSel"></select>
-        <div class="actions"><button class="btn primary" id="saveAction" type="button">Salvar</button></div>
+        <label class="lbl" for="actionInput">Action</label>
+        <input type="text" id="actionInput" list="actionList" placeholder="Type to search actions…" autocomplete="off">
+        <datalist id="actionList"></datalist>
+        <div class="actions"><button class="btn primary" id="saveAction" type="button">Save</button></div>
       </div>
 
       <div class="field hidden" id="pKeys"><div id="editor"></div></div>
@@ -65,21 +60,24 @@
       <div class="field hidden" id="pBm">
         <label class="lbl" for="bmSel">Bookmarklet</label>
         <select id="bmSel"></select>
-        <p class="help" id="bmEmpty">Nenhum bookmarklet criado ainda. Crie na página de configurações.</p>
+        <p class="help" id="bmEmpty">No bookmarklets created yet. Create one in the settings page.</p>
         <div class="actions">
-          <button class="btn primary" id="saveBm" type="button">Salvar</button>
-          <button class="btn" id="openOpts2" type="button">Criar bookmarklet</button>
+          <button class="btn primary" id="saveBm" type="button">Save</button>
+          <button class="btn" id="openOpts2" type="button">Create bookmarklet</button>
         </div>
       </div>
     </section>
 
     <div class="pop-foot">
-      <button class="btn" id="openNow" type="button">Abrir radial agora</button>
+      <button class="btn" id="openNow" type="button">Open radial now</button>
     </div>
   </main>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="sites.js"></script>
+<script src="i18n-labels.js"></script>
+<script src="i18n-ui.js"></script>
+<script src="i18n.js"></script>
 <script src="store.js"></script>
 <script src="editor.js"></script>
 <script src="popup.js"></script>

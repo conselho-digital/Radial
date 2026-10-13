@@ -11,12 +11,15 @@ Extensão Chrome (Manifest V3) com menu radial contextual no cursor.
 
 ## Uso
 - Clicar no ícone da extensão lista as opções do radial **do site aberto** (sem digitar endereço) e permite adicionar: uma **ação pronta**, um **atalho de teclado gravado** (ex.: Alt+Shift+D) ou um **bookmarklet** criado na página de configurações. Também tem "Abrir radial agora".
-- Gatilhos (página de configurações): segurar botão direito, botão do meio, botões laterais, tecla própria. O atalho do Chrome (`chrome://extensions/shortcuts`) continua disponível.
+- Padrões: segurar o botão direito por 150 ms, "manter última opção" ligado, cancelar com o botão esquerdo. Gatilhos (página de configurações): segurar botão direito, botão do meio, botões laterais, tecla própria. O atalho do Chrome (`chrome://extensions/shortcuts`) continua disponível.
 - **Soltar para ativar:** com um botão do mouse como gatilho, segure, arraste até a fatia e solte. Soltar no centro/fora deixa o menu aberto para clicar.
 - **Manter última opção:** soltar ativa a última fatia em que o mouse passou (destacada); voltar ao centro desarma.
 - **Botão para cancelar:** outro botão do mouse que fecha o radial sem ativar nada.
 - **Tamanho** do radial ajustável (280–600 px).
 - Centro do anel alterna **Site ⇄ Geral**. 50 sites reconhecidos (`sites.js`); qualquer outro site tem anel próprio por domínio, criado ao adicionar a primeira opção.
+
+## Idiomas
+Inglês (padrão), português, francês, italiano, alemão, árabe e bengali. Troque em Configurações → Language. As traduções ficam em `i18n-ui.js` (interface) e `i18n-labels.js` (ações dos sites).
 
 ## Opções do radial
 Dois tipos, criados pelo popup ou pela página de configurações:
