@@ -10,6 +10,7 @@ Extensão Chrome (Manifest V3) com menu radial contextual no cursor.
 5. Mova o mouse na página e use o atalho (ou clique no ícone da extensão).
 
 ## Uso
+- Gatilhos (página de opções): segurar botão direito (solte sobre a fatia para escolher), botão do meio, botões laterais, tecla própria. O atalho do Chrome (`chrome://extensions/shortcuts`) continua disponível.
 - Clique numa fatia para executar. `Esc` ou clique fora fecha.
 - Centro do anel alterna **Contexto ⇄ Geral**.
 - 50 sites reconhecidos, cada um com suas ferramentas (veja `sites.js`). Qualquer outro site usa o anel Geral.

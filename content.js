@@ -14,8 +14,12 @@
   // ---------- Posição do cursor ----------
   // O atalho de teclado não traz coordenadas, então guardamos a última posição.
   const mouse = { x: null, y: null };
-  window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; },
-    { capture: true, passive: true });
+  let hold = null; // temporizador do gatilho "segurar botão direito"
+  window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX; mouse.y = e.clientY;
+    // Segurar o botão direito: mover o mouse antes do tempo cancela o gatilho.
+    if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 10) { clearTimeout(hold.timer); hold = null; }
+  }, { capture: true, passive: true });
 
   // ---------- Ícones (24x24, traço) ----------
   const ICONS = {
@@ -426,6 +430,7 @@
 
   // ---------- Renderização do anel ----------
   let root = null;
+  let openedByHold = false; // aberto segurando o botão direito: soltar sobre uma fatia a escolhe
 
   function el(name, attrs = {}, html) {
     const e = document.createElementNS(SVG_NS, name);
@@ -459,6 +464,7 @@
     if (!root) return;
     const r = root;
     root = null;
+    openedByHold = false;
     document.removeEventListener('keydown', onKey, true);
     r.classList.add('rdl-closing');
     setTimeout(() => r.remove(), 120);
@@ -516,7 +522,7 @@
     return svg;
   }
 
-  async function open() {
+  async function open(opts = {}) {
     if (root) { close(); return; }
     const site = detectSite();
     const general = window.RADIAL_SITES.find((s) => s.id === 'general');
@@ -532,13 +538,14 @@
 
     // Posição: cursor (ou centro da tela), mantida dentro da janela.
     const half = SIZE / 2 + 8;
-    let x = mouse.x == null ? innerWidth / 2 : mouse.x;
-    let y = mouse.y == null ? innerHeight / 2 : mouse.y;
+    let x = opts.x ?? (mouse.x == null ? innerWidth / 2 : mouse.x);
+    let y = opts.y ?? (mouse.y == null ? innerHeight / 2 : mouse.y);
     x = Math.min(Math.max(x, half), Math.max(half, innerWidth - half));
     y = Math.min(Math.max(y, half), Math.max(half, innerHeight - half));
 
     root = document.createElement('div');
     root.className = 'rdl-backdrop';
+    openedByHold = !!opts.viaHold;
     const menu = document.createElement('div');
     menu.className = 'rdl-menu';
     menu.style.left = x - SIZE / 2 + 'px';
@@ -558,11 +565,69 @@
 
     // Não rouba o foco do editor e fecha ao clicar fora.
     root.addEventListener('mousedown', (e) => e.preventDefault());
-    root.addEventListener('mouseup', (e) => { if (e.target === root) close(); });
+    root.addEventListener('mouseup', (e) => { if (e.button === 0 && e.target === root) close(); });
     root.addEventListener('contextmenu', (e) => { e.preventDefault(); close(); });
     document.addEventListener('keydown', onKey, true);
     document.documentElement.appendChild(root);
   }
+
+  // ---------- Gatilhos configuráveis (página de opções) ----------
+  // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null }
+  let settings = { mouse: 'none', holdMs: 350, key: null };
+  const applySettings = (s) => { settings = { mouse: 'none', holdMs: 350, key: null, ...(s || {}) }; };
+  try {
+    chrome.storage.sync.get('settings').then((r) => applySettings(r.settings));
+    chrome.storage.onChanged.addListener((ch, area) => { if (area === 'sync' && ch.settings) applySettings(ch.settings.newValue); });
+  } catch (_) { /* contexto da extensão invalidado */ }
+
+  const BTN = { middle: 1, back: 3, forward: 4 }; // número do botão do mouse
+  const isEditable = (t) => !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  let pressed = false;      // botão direito está pressionado
+  let suppressCtx = false;  // engole o menu nativo que viria ao soltar
+
+  window.addEventListener('mousedown', (e) => {
+    const m = settings.mouse;
+    if (m === 'right-hold') {
+      if (e.button !== 2 || root || isEditable(e.target)) return;
+      pressed = true;
+      const x = e.clientX, y = e.clientY;
+      hold = { x, y, timer: setTimeout(() => { hold = null; suppressCtx = true; open({ x, y, viaHold: true }); }, settings.holdMs) };
+    } else if (BTN[m] === e.button) {
+      e.preventDefault(); e.stopPropagation();
+      open({ x: e.clientX, y: e.clientY });
+    }
+  }, true);
+
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 2) {
+      pressed = false;
+      if (hold) { clearTimeout(hold.timer); hold = null; }
+      if (openedByHold && root) { // soltar sobre uma fatia escolhe a fatia
+        const seg = e.target.closest && e.target.closest('.rdl-seg');
+        if (seg) seg.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      }
+      setTimeout(() => { suppressCtx = false; }, 300);
+    }
+    if (BTN[settings.mouse] === e.button) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  // Botão do meio/laterais: impede abrir link em nova aba ou voltar/avançar.
+  window.addEventListener('auxclick', (e) => {
+    if (BTN[settings.mouse] === e.button) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  window.addEventListener('contextmenu', (e) => {
+    if (settings.mouse === 'right-hold' && (suppressCtx || pressed)) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  window.addEventListener('keydown', (e) => {
+    const k = settings.key;
+    if (!k || !k.code || e.repeat || e.code !== k.code) return;
+    if (e.ctrlKey !== !!k.ctrl || e.shiftKey !== !!k.shift || e.altKey !== !!k.alt || e.metaKey !== !!k.meta) return;
+    if (isEditable(e.target) && !(k.ctrl || k.alt || k.meta)) return; // não atrapalha a digitação
+    e.preventDefault(); e.stopPropagation();
+    open();
+  }, true);
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'open-radial') open();

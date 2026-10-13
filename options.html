@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Radial — Bookmarklets</title>
+<title>Radial — Configurações</title>
 <style>
   :root { --bg:#0b0d13; --card:#151823; --line:rgba(255,255,255,.12); --txt:#e7e9ee; --dim:#8b91a1; --blue:#3b82f6; --red:#f87171; }
   * { box-sizing: border-box; }
@@ -16,9 +16,9 @@
   section { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:20px; }
   h2 { font-size:15px; margin:0 0 14px; }
   label { display:block; font-size:12px; color:var(--dim); margin:12px 0 4px; }
-  input[type=text], input[type=number], textarea { width:100%; background:#0d0f16; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px 11px; font:inherit; }
+  input[type=text], input[type=number], textarea, select { width:100%; background:#0d0f16; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px 11px; font:inherit; }
   textarea { min-height:130px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; resize:vertical; }
-  input:focus, textarea:focus { outline:none; border-color:var(--blue); }
+  input:focus, textarea:focus, select:focus { outline:none; border-color:var(--blue); }
   .row { display:flex; gap:12px; } .row > div { flex:1; } .row > div.small { flex:0 0 110px; }
   .ctx { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; max-height:220px; overflow:auto; padding:2px; }
   .ctx label { display:flex; align-items:center; gap:6px; margin:0; padding:6px 12px; border:1px solid var(--line); border-radius:999px; color:var(--txt); font-size:13px; cursor:pointer; }
@@ -40,8 +40,34 @@
 </head>
 <body>
 <main>
-  <h1><span>Radial</span> · Bookmarklets</h1>
-  <p class="sub">Cadastre trechos de JavaScript e escolha em quais anéis eles aparecem. Atalho do menu: <code>chrome://extensions/shortcuts</code></p>
+  <h1><span>Radial</span> · Configurações</h1>
+  <p class="sub">Escolha como abrir o menu e cadastre bookmarklets (trechos de JavaScript) nos anéis dos sites.</p>
+
+  <section>
+    <h2>Gatilho do menu</h2>
+    <div class="row">
+      <div>
+        <label for="mouseTrig">Botão do mouse</label>
+        <select id="mouseTrig">
+          <option value="none">Nenhum</option>
+          <option value="right-hold">Segurar botão direito</option>
+          <option value="middle">Botão do meio (roda)</option>
+          <option value="back">Botão lateral — voltar</option>
+          <option value="forward">Botão lateral — avançar</option>
+        </select>
+      </div>
+      <div class="small" id="holdBox"><label for="holdMs">Tempo (ms)</label><input type="number" id="holdMs" min="150" max="1500" step="50" value="350"></div>
+    </div>
+    <label>Tecla própria</label>
+    <div class="actions" style="margin-top:0">
+      <button id="recKey">Gravar tecla</button>
+      <code id="keyShow">nenhuma</code>
+      <button id="clearKey">Limpar</button>
+      <button id="chromeKeys">Atalho do Chrome…</button>
+    </div>
+    <small class="hint">Segurar o botão direito: solte sobre uma fatia para escolhê-la. No Mac, o menu nativo do botão direito fica desativado enquanto esse modo estiver ligado. Não funciona em campos de texto. O atalho do Chrome (Alt+Shift+R) continua à parte.</small>
+    <span id="msg2" style="font-size:13px;color:#4ade80"></span>
+  </section>
 
   <section>
     <h2 id="formTitle">Novo bookmarklet</h2>

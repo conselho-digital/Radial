@@ -114,3 +114,52 @@ $('reset').onclick = async () => { resetForm(await loadAll()); setMsg(''); };
 
 buildCtx();
 (async () => { resetForm(await render()); })();
+
+// ---------- Gatilho do menu (mouse e tecla) ----------
+const DEFAULTS = { mouse: 'none', holdMs: 350, key: null };
+let cfg = { ...DEFAULTS };
+let recording = false;
+
+function keyText(k) {
+  if (!k || !k.code) return 'nenhuma';
+  const name = k.code.replace(/^Key/, '').replace(/^Digit/, '');
+  return [k.ctrl && 'Ctrl', k.alt && 'Alt', k.shift && 'Shift', k.meta && 'Cmd', name].filter(Boolean).join('+');
+}
+
+async function saveCfg() {
+  await chrome.storage.sync.set({ settings: cfg });
+  $('msg2').textContent = ' Salvo.';
+  setTimeout(() => { $('msg2').textContent = ''; }, 1500);
+}
+
+function showCfg() {
+  $('mouseTrig').value = cfg.mouse;
+  $('holdMs').value = cfg.holdMs;
+  $('holdBox').style.display = cfg.mouse === 'right-hold' ? '' : 'none';
+  $('keyShow').textContent = keyText(cfg.key);
+}
+
+$('mouseTrig').onchange = () => { cfg.mouse = $('mouseTrig').value; showCfg(); saveCfg(); };
+$('holdMs').onchange = () => {
+  cfg.holdMs = Math.min(1500, Math.max(150, Number($('holdMs').value) || 350));
+  showCfg(); saveCfg();
+};
+$('clearKey').onclick = () => { cfg.key = null; showCfg(); saveCfg(); };
+$('chromeKeys').onclick = () => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+$('recKey').onclick = () => {
+  recording = true;
+  $('recKey').textContent = 'Pressione a tecla… (Esc cancela)';
+};
+
+window.addEventListener('keydown', (e) => {
+  if (!recording) return;
+  e.preventDefault();
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return; // espera a tecla principal
+  recording = false;
+  $('recKey').textContent = 'Gravar tecla';
+  if (e.key === 'Escape') return;
+  cfg.key = { code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey };
+  showCfg(); saveCfg();
+}, true);
+
+chrome.storage.sync.get('settings').then((r) => { cfg = { ...DEFAULTS, ...(r.settings || {}) }; showCfg(); });
