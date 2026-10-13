@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Radial",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Menu radial contextual no cursor: ações por site (Sheets, Docs, Teams) e bookmarklets personalizados.",
-  "permissions": ["storage", "scripting"],
+  "permissions": ["storage", "unlimitedStorage", "scripting", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
@@ -24,7 +24,8 @@
     }
   },
   "action": {
-    "default_title": "Abrir menu radial"
+    "default_title": "Opções do radial neste site",
+    "default_popup": "popup.html"
   },
   "options_ui": {
     "page": "options.html",

@@ -9,7 +9,7 @@
   const SIZE = 380;          // diâmetro do menu (px)
   const R_OUT = 180;         // raio externo
   const R_IN = 60;           // raio do buraco central
-  const MAX_ITEMS = 10;      // máximo de fatias por anel
+  const MAX_ITEMS = 12;      // máximo de fatias por anel
   const IS_MAC = /Mac/i.test(navigator.platform);
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -65,6 +65,7 @@
     layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
     crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/>',
     image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 16-5-5-9 9"/>',
+    keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
     play: '<path d="m7 4 13 8-13 8z"/>',
     playPause: '<path d="M4 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/>',
     fullscreen: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
@@ -184,10 +185,19 @@
     '/': [191, 'Slash'], '.': [190, 'Period'], '+': [187, 'Equal'], '=': [187, 'Equal']
   };
 
-  // Dispara um atalho. Ctrl vira Cmd no Mac.
-  function pressKeys(key, mods = {}, to) {
+  // Dispara keydown/keypress/keyup no alvo de teclado.
+  function fireKey(init, to) {
     const t = keyTarget(to);
     if (t.focus) t.focus();
+    ['keydown', 'keypress', 'keyup'].forEach((type) => {
+      if (type === 'keypress' && init.key.length !== 1) return;
+      t.dispatchEvent(new KeyboardEvent(type, init));
+    });
+    return true;
+  }
+
+  // Dispara um atalho. Ctrl vira Cmd no Mac.
+  function pressKeys(key, mods = {}, to) {
     let keyCode, code;
     if (KEYS[key]) [keyCode, code] = KEYS[key];
     else if (/^[a-z]$/i.test(key)) { keyCode = key.toUpperCase().charCodeAt(0); code = 'Key' + key.toUpperCase(); }
@@ -195,16 +205,25 @@
     else { keyCode = 0; code = key; }
     const SHIFTED = { 0: ')', 1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '^', 7: '&', 8: '*', 9: '(' };
     const shown = mods.s && key.length === 1 ? (/^[a-z]$/.test(key) ? key.toUpperCase() : (SHIFTED[key] || key)) : key;
-    const init = {
+    return fireKey({
       key: shown, code, keyCode, which: keyCode,
       ctrlKey: !!mods.c && !IS_MAC, metaKey: !!mods.c && IS_MAC,
       shiftKey: !!mods.s, altKey: !!mods.a,
       bubbles: true, cancelable: true, composed: true
-    };
-    ['keydown', 'keypress', 'keyup'].forEach((type) => {
-      if (type === 'keypress' && key.length !== 1) return;
-      t.dispatchEvent(new KeyboardEvent(type, init));
-    });
+    }, to);
+  }
+
+  // Atalhos gravados pelo usuário: repete exatamente as teclas e modificadores gravados, em sequência.
+  async function runKeys(combos) {
+    const to = location.hostname === 'docs.google.com' ? 'docs' : undefined;
+    for (const c of combos) {
+      fireKey({
+        key: String(c.key), code: String(c.code), keyCode: c.keyCode | 0, which: c.keyCode | 0,
+        ctrlKey: !!c.ctrl, shiftKey: !!c.shift, altKey: !!c.alt, metaKey: !!c.meta,
+        bubbles: true, cancelable: true, composed: true
+      }, to);
+      await sleep(80);
+    }
     return true;
   }
 
@@ -429,26 +448,33 @@
     return false;
   }
 
-  // ---------- Bookmarklets ----------
-  // Guardados em chrome.storage.sync como bm_<1..64> = { name, code, ctx: [ids de sites] }
-  async function loadBookmarklets(ctx) {
+  // ---------- Opções do usuário ----------
+  // Guardadas em chrome.storage.local como opt_<id> (veja store.js). Aqui só ficam os metadados:
+  // o código JavaScript é lido pelo background na hora de executar.
+  const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
+
+  async function loadOptions() {
     try {
-      const all = await chrome.storage.sync.get(null);
+      const all = await chrome.storage.local.get(null);
       return Object.keys(all)
-        .filter((k) => /^bm_\d+$/.test(k))
-        .map((k) => ({ index: Number(k.slice(3)), name: all[k].name, ctx: all[k].ctx, code: !!all[k].code })) // só metadados: o código fica no background
-        .filter((b) => b.code && Array.isArray(b.ctx) && b.ctx.includes(ctx))
-        .sort((a, b) => a.index - b.index)
-        .map((b) => ({
-          id: 'bm-' + b.index, label: b.name || ('Bookmarklet ' + b.index), icon: 'code',
-          run: async () => {
-            const res = await chrome.runtime.sendMessage({ type: 'run-bookmarklet', index: b.index });
-            if (!res || !res.ok) toast((res && res.error) || 'Falha ao executar.', true);
-          }
-        }));
+        .filter((k) => k.startsWith('opt_') && Array.isArray(all[k].ctx))
+        .map((k) => ({ id: k.slice(4), type: all[k].type, name: all[k].name, ctx: all[k].ctx, keys: all[k].keys, hasCode: !!all[k].code, t: all[k].t || 0 }))
+        .filter((o) => (o.type === 'keys' && Array.isArray(o.keys) && o.keys.length) || (o.type === 'js' && o.hasCode))
+        .sort((a, b) => a.t - b.t);
     } catch (_) {
       return [];
     }
+  }
+
+  function optionItem(o) {
+    return {
+      id: 'opt-' + o.id, label: o.name || 'Opção', icon: o.type === 'keys' ? 'keyboard' : 'code',
+      run: async () => {
+        if (o.type === 'keys') { await runKeys(o.keys); return; }
+        const res = await chrome.runtime.sendMessage({ type: 'run-option', id: o.id });
+        if (!res || !res.ok) toast((res && res.error) || 'Falha ao executar.', true);
+      }
+    };
   }
 
   // Transforma as ações do registro em itens do anel.
@@ -467,7 +493,8 @@
   let rootHost = null;  // elemento hospedeiro na página
   let opening = false;  // trava síncrona: evita abrir dois menus ao mesmo tempo
   const segRun = new WeakMap(); // fatia -> ação (assim o clique não depende de eventos falsificáveis)
-  let openedByHold = false; // aberto segurando o botão direito: soltar sobre uma fatia a escolhe
+  let openedBtn = null;     // botão do mouse que abriu o menu e ainda está pressionado: soltar escolhe a fatia
+  let armed = null;         // última fatia sob o mouse (só com "manter última opção" ligado)
 
   function el(name, attrs = {}, html) {
     const e = document.createElementNS(SVG_NS, name);
@@ -502,7 +529,8 @@
     const r = root, h = rootHost;
     root = null;
     rootHost = null;
-    openedByHold = false;
+    openedBtn = null;
+    armed = null;
     document.removeEventListener('keydown', onKey, true);
     r.classList.add('rdl-closing');
     setTimeout(() => h.remove(), 120);
@@ -515,6 +543,7 @@
   function buildRing(items, centerLabel, canSwap, onSwap) {
     const c = SIZE / 2;
     const n = items.length;
+    armed = null;
     const svg = el('svg', { viewBox: `0 0 ${SIZE} ${SIZE}`, width: SIZE, height: SIZE, class: 'rdl-svg' });
 
     items.forEach((item, i) => {
@@ -545,6 +574,12 @@
         } catch (err) { toast(String(err && err.message || err), true); }
       };
       segRun.set(g, activate);
+      g.addEventListener('mouseenter', () => {
+        if (!settings.sticky) return;
+        if (armed) armed.classList.remove('rdl-armed');
+        armed = g;
+        g.classList.add('rdl-armed');
+      });
       g.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -560,6 +595,8 @@
     const ct = el('text', { x: c, y: c + 4, 'text-anchor': 'middle' });
     ct.textContent = centerLabel;
     center.appendChild(ct);
+    // Voltar ao centro desarma a opção (soltar ali não ativa nada).
+    center.addEventListener('mouseenter', () => { if (armed) { armed.classList.remove('rdl-armed'); armed = null; } });
     if (canSwap) center.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) onSwap(); });
     svg.appendChild(center);
     return svg;
@@ -576,17 +613,29 @@
     const site = detectSite();
     const general = window.RADIAL_SITES.find((s) => s.id === 'general');
 
-    // Carrega bookmarklets do site e do anel "Geral".
-    const [bmSite, bmGeneral] = await Promise.all([
-      loadBookmarklets(site.id),
-      site.id === 'general' ? Promise.resolve([]) : loadBookmarklets('general')
-    ]);
-    const rings = { [site.id]: [...siteItems(site), ...bmSite].slice(0, MAX_ITEMS) };
-    if (site.id !== 'general') rings.general = [...siteItems(general), ...bmGeneral].slice(0, MAX_ITEMS);
-    let current = site.id;
+    // Anéis: o do site (ou do domínio, se o site não está em sites.js) e o "Geral".
+    const saved = await loadOptions();
+    const hostRing = 'host:' + hostKey();
+    const pick = (...ids) => saved.filter((o) => o.ctx.some((c) => ids.includes(c))).map(optionItem);
+    const rings = {};
+    const names = {};
+    if (site.id !== 'general') {
+      rings.main = [...siteItems(site), ...pick(site.id, hostRing)];
+      names.main = site.short;
+    } else if (pick(hostRing).length) {
+      rings.main = pick(hostRing);
+      const h = hostKey();
+      names.main = h.length > 10 ? h.slice(0, 9) + '…' : h;
+    }
+    rings.general = [...siteItems(general), ...pick('general')];
+    names.general = general.short;
+    Object.keys(rings).forEach((k) => { rings[k] = rings[k].slice(0, MAX_ITEMS); });
+    const hasMain = !!rings.main;
+    let current = hasMain ? 'main' : 'general';
 
     // Posição: cursor (ou centro da tela), mantida dentro da janela.
-    const half = SIZE / 2 + 8;
+    const k = Math.min(1.6, Math.max(0.7, (settings.size || SIZE) / SIZE)); // fator de escala do tamanho escolhido
+    const half = (SIZE * k) / 2 + 8;
     let x = opts.x ?? (mouse.x == null ? innerWidth / 2 : mouse.x);
     let y = opts.y ?? (mouse.y == null ? innerHeight / 2 : mouse.y);
     x = Math.min(Math.max(x, half), Math.max(half, innerWidth - half));
@@ -597,18 +646,21 @@
     root = document.createElement('div');
     root.className = 'rdl-backdrop';
     shadow.appendChild(root);
-    openedByHold = !!opts.viaHold;
+    openedBtn = opts.viaBtn != null && btnDown === opts.viaBtn ? opts.viaBtn : null;
+    // O menu fica dentro de uma caixa escalada: a geometria interna continua em 380px.
+    const box = document.createElement('div');
+    box.style.cssText = `all:initial;position:fixed;width:${SIZE}px;height:${SIZE}px;left:${x - SIZE / 2}px;top:${y - SIZE / 2}px;transform:scale(${k});transform-origin:center`;
     const menu = document.createElement('div');
     menu.className = 'rdl-menu';
-    menu.style.left = x - SIZE / 2 + 'px';
-    menu.style.top = y - SIZE / 2 + 'px';
-    root.appendChild(menu);
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    box.appendChild(menu);
+    root.appendChild(box);
 
     const render = () => {
       menu.querySelector('svg')?.remove();
-      const label = current === site.id ? site.short : general.short;
-      menu.appendChild(buildRing(rings[current], label, site.id !== 'general',
-        () => { current = current === site.id ? 'general' : site.id; render(); }));
+      menu.appendChild(buildRing(rings[current], names[current], hasMain,
+        () => { current = current === 'main' ? 'general' : 'main'; render(); }));
     };
     const disc = document.createElement('div');
     disc.className = 'rdl-disc';
@@ -624,60 +676,79 @@
   }
 
   // ---------- Gatilhos configuráveis (página de opções) ----------
-  // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null }
-  let settings = { mouse: 'none', holdMs: 350, key: null };
-  const applySettings = (s) => { settings = { mouse: 'none', holdMs: 350, key: null, ...(s || {}) }; };
+  // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null,
+  //              size: px, sticky: bool (soltar ativa a última fatia), cancel: 'none'|'right'|'middle'|'back'|'forward' }
+  const DEFAULTS = { mouse: 'none', holdMs: 350, key: null, size: 380, sticky: false, cancel: 'right' };
+  let settings = { ...DEFAULTS };
+  const applySettings = (s) => { settings = { ...DEFAULTS, ...(s || {}) }; };
   try {
     chrome.storage.sync.get('settings').then((r) => applySettings(r.settings));
     chrome.storage.onChanged.addListener((ch, area) => { if (area === 'sync' && ch.settings) applySettings(ch.settings.newValue); });
   } catch (_) { /* contexto da extensão invalidado */ }
 
   const BTN = { middle: 1, back: 3, forward: 4 }; // número do botão do mouse
+  const CANCEL_BTN = { right: 2, middle: 1, back: 3, forward: 4 };
   const isEditable = (t) => !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
   let pressed = false;      // botão direito está pressionado
   let suppressCtx = false;  // engole o menu nativo que viria ao soltar
+  let btnDown = null;       // botão de abertura atualmente pressionado
+  const cancelBtn = () => (settings.cancel === 'none' ? null : CANCEL_BTN[settings.cancel] ?? null);
+  // Botões que a extensão "possui" agora: o de abrir e, com o menu aberto, o de cancelar.
+  const ours = (b) => BTN[settings.mouse] === b || (!!root && cancelBtn() === b);
 
   window.addEventListener('mousedown', (e) => {
     if (!e.isTrusted) return; // só ações reais do usuário abrem o menu
+    // Botão de cancelar: fecha o menu sem ativar nada.
+    if (root && cancelBtn() === e.button && !(settings.mouse === 'right-hold' && e.button === 2)) {
+      e.preventDefault(); e.stopPropagation();
+      if (e.button === 2) suppressCtx = true;
+      close();
+      return;
+    }
     const m = settings.mouse;
     if (m === 'right-hold') {
       if (e.button !== 2 || root || isEditable(e.target)) return;
       pressed = true;
+      btnDown = 2;
       const x = e.clientX, y = e.clientY;
-      hold = { x, y, timer: setTimeout(() => { hold = null; suppressCtx = true; open({ x, y, viaHold: true }); }, settings.holdMs) };
+      hold = { x, y, timer: setTimeout(() => { hold = null; suppressCtx = true; open({ x, y, viaBtn: 2 }); }, settings.holdMs) };
     } else if (BTN[m] === e.button) {
       e.preventDefault(); e.stopPropagation();
-      open({ x: e.clientX, y: e.clientY });
+      btnDown = e.button;
+      open({ x: e.clientX, y: e.clientY, viaBtn: e.button });
     }
   }, true);
 
   window.addEventListener('mouseup', (e) => {
     if (!e.isTrusted) return;
+    const wasOpener = btnDown === e.button;
+    if (wasOpener) btnDown = null;
     if (e.button === 2) {
       pressed = false;
       if (hold) { clearTimeout(hold.timer); hold = null; }
-      if (openedByHold && root) { // soltar sobre uma fatia escolhe a fatia
-        const t = e.composedPath ? e.composedPath()[0] : e.target; // dentro do Shadow DOM o alvo é o hospedeiro
-        const seg = t && t.closest && t.closest('.rdl-seg');
-        const run = seg && segRun.get(seg);
-        if (run) run();
-      }
       setTimeout(() => { suppressCtx = false; }, 300);
     }
-    if (BTN[settings.mouse] === e.button) { e.preventDefault(); e.stopPropagation(); }
+    // Soltar o botão que abriu: escolhe a fatia sob o mouse (ou a última, no modo "manter última opção").
+    if (wasOpener && openedBtn === e.button && root) {
+      const t = e.composedPath ? e.composedPath()[0] : e.target; // dentro do Shadow DOM o alvo é o hospedeiro
+      const seg = t && t.closest && t.closest('.rdl-seg');
+      const run = (seg && segRun.get(seg)) || (settings.sticky && armed && segRun.get(armed));
+      if (run) { e.preventDefault(); e.stopPropagation(); run(); }
+    }
+    if (ours(e.button) && e.button !== 2) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 
   // Botão do meio/laterais: impede abrir link em nova aba ou voltar/avançar.
   window.addEventListener('auxclick', (e) => {
-    if (BTN[settings.mouse] === e.button) { e.preventDefault(); e.stopPropagation(); }
+    if (ours(e.button) || BTN[settings.mouse] === e.button) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 
   window.addEventListener('contextmenu', (e) => {
-    if (settings.mouse === 'right-hold' && (suppressCtx || pressed)) { e.preventDefault(); e.stopPropagation(); }
+    if (suppressCtx || (settings.mouse === 'right-hold' && pressed)) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 
   // Janela perdeu o foco com o botão pressionado: zera o estado do "segurar".
-  window.addEventListener('blur', () => { pressed = false; if (hold) { clearTimeout(hold.timer); hold = null; } });
+  window.addEventListener('blur', () => { pressed = false; btnDown = null; if (hold) { clearTimeout(hold.timer); hold = null; } });
 
   window.addEventListener('keydown', (e) => {
     const k = settings.key;

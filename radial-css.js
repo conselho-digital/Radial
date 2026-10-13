@@ -52,7 +52,7 @@ window.RADIAL_CSS = `
   transition: fill 90ms ease;
   cursor: pointer;
 }
-.rdl-seg:hover > path { fill: rgba(59, 130, 246, .96); }
+.rdl-seg:hover > path, .rdl-seg.rdl-armed > path { fill: rgba(59, 130, 246, .96); }
 
 .rdl-label { pointer-events: none; }
 .rdl-icon {
@@ -66,8 +66,8 @@ window.RADIAL_CSS = `
   fill: #e7e9ee;
   font: 500 11.5px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-.rdl-seg:hover .rdl-label text { fill: #fff; font-weight: 700; }
-.rdl-seg:hover .rdl-icon { stroke: #fff; }
+.rdl-seg:hover .rdl-label text, .rdl-seg.rdl-armed .rdl-label text { fill: #fff; font-weight: 700; }
+.rdl-seg:hover .rdl-icon, .rdl-seg.rdl-armed .rdl-icon { stroke: #fff; }
 
 .rdl-center circle {
   fill: #05060a;

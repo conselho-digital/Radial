@@ -1,4 +1,4 @@
-// Página de configurações: tema, gatilhos do menu e bookmarklets (chrome.storage.sync).
+// Página de configurações: tema, gatilhos do menu (chrome.storage.sync) e opções do radial (chrome.storage.local).
 // Sites vêm de sites.js (window.RADIAL_SITES): id + nome.
 const CTX_NAMES = Object.fromEntries(window.RADIAL_SITES.map((s) => [s.id, s.name]));
 const $ = (id) => document.getElementById(id);
@@ -44,93 +44,25 @@ function initTheme() {
   });
 }
 
-// ---------- Bookmarklets ----------
-let editingIndex = null;
-let editingExtraCtx = []; // contextos de sites que não existem mais: preservados ao editar
+// ---------- Opções do radial ----------
+const E = window.RADIAL_EDITOR;
+let editor = null;
 
-async function loadAll() {
-  const all = await chrome.storage.sync.get(null);
-  return Object.keys(all)
-    .filter((k) => /^bm_\d+$/.test(k))
-    .map((k) => ({ index: Number(k.slice(3)), ...all[k] }))
-    .sort((a, b) => a.index - b.index);
-}
-
-function nextFreeIndex(items) {
-  const used = new Set(items.map((b) => b.index));
-  for (let i = 1; i <= 64; i++) if (!used.has(i)) return i;
-  return '';
-}
-
-function updateCount() {
-  const n = document.querySelectorAll('#ctx input:checked').length;
-  $('ctxCount').textContent = n ? '· ' + n + ' selecionado' + (n > 1 ? 's' : '') : '';
-}
-
-// Monta os chips de contexto (um por site).
-function buildCtx() {
-  const box = $('ctx');
-  window.RADIAL_SITES.forEach((s) => {
-    const label = document.createElement('label');
-    label.className = 'chip';
-    const c = document.createElement('input');
-    c.type = 'checkbox';
-    c.value = s.id;
-    c.onchange = updateCount;
-    const pill = document.createElement('span');
-    pill.className = 'pill';
-    pill.textContent = s.name;
-    label.append(c, pill);
-    box.appendChild(label);
-  });
-  $('ctxFilter').oninput = (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    box.querySelectorAll('.chip').forEach((l) => { l.style.display = l.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-  };
-}
-
-function setCtx(list) {
-  document.querySelectorAll('#ctx input').forEach((c) => { c.checked = list.includes(c.value); });
-  updateCount();
-}
-
-function resetForm(items) {
-  editingIndex = null;
-  editingExtraCtx = [];
-  $('formTitle').textContent = 'Novo bookmarklet';
-  $('save').textContent = 'Salvar bookmarklet';
-  $('index').value = nextFreeIndex(items);
-  $('name').value = '';
-  $('code').value = '';
-  setCtx(['general']);
-}
-
-function fillForm(b) {
-  editingIndex = b.index;
-  editingExtraCtx = (b.ctx || []).filter((c) => !(c in CTX_NAMES));
-  $('formTitle').textContent = 'Editando #' + b.index;
-  $('save').textContent = 'Salvar alterações';
-  $('index').value = b.index;
-  $('name').value = b.name || '';
-  $('code').value = b.code || '';
-  setCtx(b.ctx || []);
-  $('name').focus();
-  $('formTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function iconButton(label, path, cls, onclick) {
+function iconButton(label, name, cls, onclick) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'btn icon ' + cls;
   b.title = label;
   b.setAttribute('aria-label', label);
-  b.append(svgIcon(path));
+  b.innerHTML = E.icon_(name);
   b.onclick = onclick;
   return b;
 }
 
+const ringName = (c) => CTX_NAMES[c] || (c.startsWith('host:') ? c.slice(5) : c);
+
 async function render() {
-  const items = await loadAll();
+  const items = await window.RADIAL_STORE.list();
   const ul = $('list');
   ul.textContent = '';
   if (!items.length) {
@@ -138,68 +70,42 @@ async function render() {
     li.className = 'empty-state';
     li.append(svgIcon(ICON.code));
     const p = document.createElement('p');
-    p.textContent = 'Nenhum bookmarklet salvo ainda. Cadastre o primeiro acima.';
+    p.textContent = 'Nenhuma opção salva ainda. Adicione a primeira acima.';
     li.append(p);
     ul.appendChild(li);
   }
-  items.forEach((b) => {
+  items.forEach((o) => {
     const li = document.createElement('li');
     li.className = 'item';
-    const idx = Object.assign(document.createElement('span'), { className: 'idx', textContent: '#' + b.index });
     const info = document.createElement('div');
     info.className = 'info';
-    const name = Object.assign(document.createElement('b'), { textContent: b.name || '(sem nome)' });
+    const head = document.createElement('div');
+    head.className = 'item-head';
+    head.append(
+      Object.assign(document.createElement('b'), { textContent: o.name || '(sem nome)' }),
+      Object.assign(document.createElement('span'), { className: 'badge', textContent: o.type === 'js' ? 'JavaScript' : 'Teclas' }));
+    const sub = document.createElement('div');
+    sub.className = 'help';
+    sub.style.marginTop = '2px';
+    sub.textContent = o.type === 'js' ? (o.code || '').length + ' caracteres de código' : (o.keys || []).map(E.comboText).join(' › ');
     const tags = document.createElement('div');
     tags.className = 'tags';
-    const ctxs = [...(b.ctx || [])];
-    if (!ctxs.length) ctxs.push('');
-    ctxs.forEach((c) => {
-      tags.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: CTX_NAMES[c] || c || 'Sem anel' }));
+    (o.ctx || []).forEach((c) => tags.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: ringName(c) })));
+    info.append(head, sub, tags);
+    const edit = iconButton('Editar ' + o.name, 'edit', '', () => editor.edit(o));
+    const del = iconButton('Excluir ' + o.name, 'trash', 'danger', async () => {
+      if (!confirm('Excluir "' + (o.name || 'sem nome') + '"?')) return;
+      await window.RADIAL_STORE.remove(o.id);
+      toast('Opção excluída.');
+      render();
     });
-    info.append(name, tags);
-    const edit = iconButton('Editar ' + (b.name || '#' + b.index), ICON.edit, '', () => fillForm(b));
-    const del = iconButton('Excluir ' + (b.name || '#' + b.index), ICON.trash, 'danger', async () => {
-      if (!confirm('Excluir "' + (b.name || '#' + b.index) + '"?')) return;
-      await chrome.storage.sync.remove('bm_' + b.index);
-      toast('Bookmarklet excluído.');
-      const rest = await render();
-      if (editingIndex === b.index) resetForm(rest);
-    });
-    li.append(idx, info, edit, del);
+    li.append(info, edit, del);
     ul.appendChild(li);
   });
-  return items;
 }
 
-$('save').onclick = async () => {
-  const index = Number($('index').value);
-  const name = $('name').value.trim();
-  const code = $('code').value.trim();
-  const ctx = [...document.querySelectorAll('#ctx input:checked')].map((c) => c.value).concat(editingExtraCtx);
-  if (!Number.isInteger(index) || index < 1 || index > 64) return toast('O índice deve ser de 1 a 64.', true);
-  if (!name) return toast('Dê um nome ao bookmarklet.', true);
-  if (!code) return toast('O código está vazio.', true);
-  if (!ctx.length) return toast('Escolha ao menos um anel.', true);
-  const existing = await loadAll();
-  if (index !== editingIndex && existing.some((b) => b.index === index) &&
-      !confirm('Já existe um bookmarklet no índice ' + index + '. Substituir?')) return;
-  try {
-    await chrome.storage.sync.set({ ['bm_' + index]: { name, code, ctx } });
-    // Mudou o índice de um bookmarklet em edição: remove o antigo (é uma mudança, não uma cópia).
-    if (editingIndex !== null && editingIndex !== index) await chrome.storage.sync.remove('bm_' + editingIndex);
-  } catch (e) {
-    // Limite do sync: ~8 KB por item.
-    return toast('Não foi possível salvar (código grande demais?): ' + e.message, true);
-  }
-  const items = await render();
-  resetForm(items);
-  toast('Salvo no índice ' + index + '.');
-};
-
-$('reset').onclick = async () => { resetForm(await loadAll()); };
-
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'none', holdMs: 350, key: null };
+const DEFAULTS = { mouse: 'none', holdMs: 350, key: null, size: 380, sticky: false, cancel: 'right' };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -223,6 +129,15 @@ function showCfg() {
   $('holdMs').value = cfg.holdMs;
   $('holdOut').textContent = cfg.holdMs + ' ms';
   $('holdBox').style.display = cfg.mouse === 'right-hold' ? '' : 'none';
+  $('size').value = cfg.size;
+  $('sizeOut').textContent = cfg.size + ' px';
+  $('sticky').checked = !!cfg.sticky;
+  const trig = { middle: 'middle', back: 'back', forward: 'forward', 'right-hold': 'right' }[cfg.mouse];
+  if (trig && cfg.cancel === trig) cfg.cancel = 'none';
+  document.querySelectorAll('input[name="cancelBtn"]').forEach((r) => {
+    r.checked = r.value === cfg.cancel;
+    r.disabled = r.value !== 'none' && r.value === trig; // o botão do gatilho não pode cancelar
+  });
   const t = keyText(cfg.key);
   $('keyShow').textContent = t || 'Nenhuma';
   $('keyShow').className = t ? '' : 'empty';
@@ -235,7 +150,19 @@ function stopRecording() {
 }
 
 document.querySelectorAll('input[name="mouseTrig"]').forEach((r) => {
-  r.onchange = () => { if (r.checked) { cfg.mouse = r.value; showCfg(); saveCfg(); } };
+  r.onchange = () => {
+    if (!r.checked) return;
+    cfg.mouse = r.value;
+    const trig = { middle: 'middle', back: 'back', forward: 'forward', 'right-hold': 'right' }[cfg.mouse];
+    if (trig && cfg.cancel === trig) cfg.cancel = 'none'; // o gatilho não pode ser também o cancelar
+    showCfg(); saveCfg();
+  };
+});
+$('size').oninput = () => { $('sizeOut').textContent = $('size').value + ' px'; };
+$('size').onchange = () => { cfg.size = Number($('size').value) || 380; showCfg(); saveCfg(); };
+$('sticky').onchange = () => { cfg.sticky = $('sticky').checked; saveCfg(); };
+document.querySelectorAll('input[name="cancelBtn"]').forEach((r) => {
+  r.onchange = () => { if (r.checked) { cfg.cancel = r.value; showCfg(); saveCfg(); } };
 });
 $('holdMs').oninput = () => { $('holdOut').textContent = $('holdMs').value + ' ms'; };
 $('holdMs').onchange = () => { cfg.holdMs = Number($('holdMs').value) || 350; showCfg(); saveCfg(); };
@@ -261,10 +188,14 @@ window.addEventListener('keydown', (e) => {
 
 // ---------- Início ----------
 initTheme();
-buildCtx();
 (async () => {
+  await window.RADIAL_STORE.migrate();
+  editor = E.mount($('editor'), {
+    siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: s.name })),
+    toast, onChange: render
+  });
   const r = await chrome.storage.sync.get('settings');
   cfg = { ...DEFAULTS, ...(r.settings || {}) };
   showCfg();
-  resetForm(await render());
+  render();
 })();
