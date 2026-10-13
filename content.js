@@ -458,18 +458,27 @@
       const all = await chrome.storage.local.get(null);
       return Object.keys(all)
         .filter((k) => k.startsWith('opt_') && Array.isArray(all[k].ctx))
-        .map((k) => ({ id: k.slice(4), type: all[k].type, name: all[k].name, ctx: all[k].ctx, keys: all[k].keys, hasCode: !!all[k].code, t: all[k].t || 0 }))
-        .filter((o) => (o.type === 'keys' && Array.isArray(o.keys) && o.keys.length) || (o.type === 'js' && o.hasCode))
+        .map((k) => ({ id: k.slice(4), type: all[k].type, name: all[k].name, ctx: all[k].ctx, keys: all[k].keys, ref: all[k].ref, hasCode: !!all[k].code, t: all[k].t || 0 }))
+        .filter((o) => (o.type === 'keys' && Array.isArray(o.keys) && o.keys.length) || (o.type === 'js' && o.hasCode) ||
+          (o.type === 'action' && o.ref && findAction(o.ref)))
         .sort((a, b) => a.t - b.t);
     } catch (_) {
       return [];
     }
   }
 
+  // Ação pronta do registro (sites.js), guardada como { site, label }.
+  function findAction(ref) {
+    const site = window.RADIAL_SITES.find((s) => s.id === ref.site);
+    return site && site.actions.find((a) => a.label === ref.label);
+  }
+
   function optionItem(o) {
+    const act = o.type === 'action' ? findAction(o.ref) : null;
     return {
-      id: 'opt-' + o.id, label: o.name || 'Opção', icon: o.type === 'keys' ? 'keyboard' : 'code',
+      id: 'opt-' + o.id, label: o.name || 'Opção', icon: act ? act.icon : o.type === 'keys' ? 'keyboard' : 'code',
       run: async () => {
+        if (act) { if (!(await runStep(act.do))) toast('Não encontrei "' + act.label + '" nesta página.', true); return; }
         if (o.type === 'keys') { await runKeys(o.keys); return; }
         const res = await chrome.runtime.sendMessage({ type: 'run-option', id: o.id });
         if (!res || !res.ok) toast((res && res.error) || 'Falha ao executar.', true);

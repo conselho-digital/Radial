@@ -288,6 +288,10 @@
       root.querySelector('label[for="ed-name"]').textContent = 'Nome do bookmarklet';
       root.querySelector('label[for="ed-code"]').textContent = 'Conteúdo (código)';
     }
+    if (opts.keysOnly) {
+      root.querySelector('.seg').classList.add('hidden');
+      $('[data-panel="js"]').classList.add('hidden');
+    }
     if (opts.noJs) root.querySelector('input[value="js"]').closest('label').classList.add('hidden');
     renderShortcut();
     reset();

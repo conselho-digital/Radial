@@ -33,19 +33,44 @@
   <div id="unsupported" class="note hidden">Esta página (chrome://, loja de extensões, visualizador de PDF…) não aceita o radial. Abra um site comum para adicionar opções.</div>
 
   <main id="main">
-    <section class="card" id="savedCard">
+    <section class="card">
       <div class="card-head">
-        <h2>Opções deste site</h2>
+        <h2>Opções do radial</h2>
         <p class="lead" id="savedLead"></p>
       </div>
       <ul class="list" id="list"></ul>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn primary" id="addBtn" type="button">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Adicionar opção</button>
+      </div>
     </section>
 
-    <section class="card" aria-labelledby="h-add">
-      <div class="card-head">
-        <h2 id="h-add">Adicionar opção ao radial</h2>
+    <section class="card hidden" id="addCard" aria-labelledby="h-add">
+      <div class="card-head"><h2 id="h-add">Nova opção</h2></div>
+      <label class="lbl" for="kind">O que adicionar</label>
+      <select id="kind">
+        <option value="action">Ação pronta</option>
+        <option value="keys">Atalho de teclado (gravar)</option>
+        <option value="bm">Bookmarklet salvo</option>
+      </select>
+
+      <div class="field" id="pAction">
+        <label class="lbl" for="actionSel">Ação</label>
+        <select id="actionSel"></select>
+        <div class="actions"><button class="btn primary" id="saveAction" type="button">Salvar</button></div>
       </div>
-      <div id="editor"></div>
+
+      <div class="field hidden" id="pKeys"><div id="editor"></div></div>
+
+      <div class="field hidden" id="pBm">
+        <label class="lbl" for="bmSel">Bookmarklet</label>
+        <select id="bmSel"></select>
+        <p class="help" id="bmEmpty">Nenhum bookmarklet criado ainda. Crie na página de configurações.</p>
+        <div class="actions">
+          <button class="btn primary" id="saveBm" type="button">Salvar</button>
+          <button class="btn" id="openOpts2" type="button">Criar bookmarklet</button>
+        </div>
+      </div>
     </section>
 
     <div class="pop-foot">

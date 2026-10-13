@@ -211,7 +211,7 @@ body.popup .card-head { margin-bottom: 12px; }
 body.popup .card-head h2 { font-size: 15px; }
 body.popup .field { margin-top: 14px; }
 body.popup .btn { min-height: 40px; }
-body.popup .list { max-height: 160px; overflow: auto; }
+body.popup .list { max-height: 220px; overflow: auto; }
 body.popup .item { padding: 8px 10px; }
 body.popup textarea { min-height: 110px; }
 body.popup .btn.icon { width: 36px; min-height: 36px; }
@@ -219,3 +219,9 @@ body.popup .btn.icon { width: 36px; min-height: 36px; }
 .pop-foot .btn { flex: 1; }
 .note { font-size: 13px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; }
 .seg.full .pill { white-space: nowrap; padding: 0 8px; font-size: 13px; }
+select {
+  width: 100%; min-height: 44px; padding: 8px 12px; font: 15px var(--font); color: var(--text);
+  background: var(--surface); border: 1px solid var(--control-border); border-radius: var(--radius-sm);
+}
+select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); }
+.badge.muted { color: var(--muted); background: var(--surface); border: 1px solid var(--border); }
