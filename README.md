@@ -19,6 +19,11 @@ Extensão Chrome (Manifest V3) com menu radial contextual no cursor.
 Abra as opções da extensão, cadastre índice (1–64), nome, código e os anéis
 onde o botão aparece. Salvos em `chrome.storage.sync` como `bm_<índice>`.
 
+## Segurança
+- Menu e avisos ficam em Shadow DOM; a página não consegue estilizá-los.
+- Só eventos reais (`isTrusted`) abrem o menu ou escolhem uma fatia.
+- Bookmarklets: o código é lido pelo background (nunca passa pelo content script) e só roda por pedido da própria extensão.
+
 ## Limitações
 - Ações de Planilhas/Docs/Teams dependem da interface dos sites (best effort).
 - Bookmarklets podem ser bloqueados por CSP estrito da página.

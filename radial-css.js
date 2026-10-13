@@ -1,3 +1,5 @@
+// CSS do menu e dos avisos. Fica em JS para ser injetado dentro do Shadow DOM (isolado da página).
+window.RADIAL_CSS = `
 /* Menu radial: tema escuro com vidro (glassmorphism). Tudo com prefixo rdl- */
 
 .rdl-backdrop {
@@ -103,3 +105,4 @@
 }
 .rdl-toast-error { border-color: rgba(248, 113, 113, .6); }
 .rdl-toast-out { opacity: 0; }
+`;

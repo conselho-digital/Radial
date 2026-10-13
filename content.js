@@ -1,8 +1,10 @@
 // Content script: monta o menu radial no cursor e executa as ações.
 // Os sites e suas ferramentas ficam em sites.js (dados); aqui está o motor.
 (() => {
-  if (window.__radialLoaded) return; // evita carregar duas vezes (injeção sob demanda)
-  window.__radialLoaded = true;
+  // Evita carregar duas vezes (injeção sob demanda). Se a extensão foi recarregada, o script
+  // antigo fica inválido e o novo deve assumir.
+  if (window.__radialLoaded && window.__radialLoaded()) return;
+  window.__radialLoaded = () => { try { return !!chrome.runtime.id; } catch (_) { return false; } };
 
   const SIZE = 380;          // diâmetro do menu (px)
   const R_OUT = 180;         // raio externo
@@ -123,13 +125,29 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
 
+  // Toda a interface vive num Shadow DOM: o CSS da página não a altera e ela não vira alvo de clickjacking.
+  function makeHost(passive) {
+    const host = document.createElement('div');
+    host.className = 'rdl-host';
+    host.style.cssText = passive
+      ? 'all:initial;position:fixed;width:0;height:0;z-index:2147483647;pointer-events:none;'
+      : 'all:initial;position:fixed;inset:0;z-index:2147483647;';
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = window.RADIAL_CSS;
+    shadow.appendChild(style);
+    return { host, shadow };
+  }
+
   function toast(text, isError) {
+    const { host, shadow } = makeHost(true);
     const el = document.createElement('div');
     el.className = 'rdl-toast' + (isError ? ' rdl-toast-error' : '');
     el.textContent = text;
-    document.documentElement.appendChild(el);
+    shadow.appendChild(el);
+    document.documentElement.appendChild(host);
     setTimeout(() => el.classList.add('rdl-toast-out'), 2200);
-    setTimeout(() => el.remove(), 2600);
+    setTimeout(() => host.remove(), 2600);
   }
 
   async function copyText(text) {
@@ -175,8 +193,10 @@
     else if (/^[a-z]$/i.test(key)) { keyCode = key.toUpperCase().charCodeAt(0); code = 'Key' + key.toUpperCase(); }
     else if (/^\d$/.test(key)) { keyCode = key.charCodeAt(0); code = 'Digit' + key; }
     else { keyCode = 0; code = key; }
+    const SHIFTED = { 0: ')', 1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '^', 7: '&', 8: '*', 9: '(' };
+    const shown = mods.s && key.length === 1 ? (/^[a-z]$/.test(key) ? key.toUpperCase() : (SHIFTED[key] || key)) : key;
     const init = {
-      key, code, keyCode, which: keyCode,
+      key: shown, code, keyCode, which: keyCode,
       ctrlKey: !!mods.c && !IS_MAC, metaKey: !!mods.c && IS_MAC,
       shiftKey: !!mods.s, altKey: !!mods.a,
       bubbles: true, cancelable: true, composed: true
@@ -210,14 +230,23 @@
       (el.textContent || '').length <= 60 ? el.textContent : ''].map(norm).filter(Boolean);
   }
 
+  const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // "exato" | "começa com" | "contém", sempre por palavra inteira ("star" não casa com "Starred").
+  function labelMatches(label, want, mode) {
+    if (mode === 'eq') return label === want;
+    if (label.length > want.length + 30) return false; // texto longo demais não é um botão
+    const re = new RegExp((mode === 'start' ? '^' : '(?:^|[^\\p{L}\\p{N}])') + escRe(want) + '(?![\\p{L}\\p{N}])', 'u');
+    return re.test(label);
+  }
+
   // Acha elementos pelo texto (pt/en): exato > começa com > contém.
   function findAllByText(labels) {
     const want = labels.map(norm);
     const pool = [...document.querySelectorAll(INTERACTIVE)].filter(visible);
     for (const mode of ['eq', 'start', 'has']) {
       for (const w of want) {
-        const hits = pool.filter((el) => labelsOf(el).some((l) =>
-          mode === 'eq' ? l === w : mode === 'start' ? l.startsWith(w) : l.includes(w)));
+        const hits = pool.filter((el) => labelsOf(el).some((l) => labelMatches(l, w, mode)));
         if (hits.length) return hits;
       }
     }
@@ -230,11 +259,14 @@
     return [];
   }
 
+  // Seletores CSS: prefere elementos visíveis (o seletor de arquivo é escondido de propósito).
   function findAllBySel(selectors) {
     for (const s of selectors) {
       let list = [];
       try { list = [...document.querySelectorAll(s)]; } catch (_) { /* seletor inválido */ }
-      if (list.length) return list;
+      const vis = list.filter(visible);
+      if (vis.length) return vis;
+      if (list.length && /type=["']?file/.test(s)) return list;
     }
     return [];
   }
@@ -291,14 +323,16 @@
     const st = document.createElement('style');
     st.id = id;
     st.textContent = 'html{filter:invert(1) hue-rotate(180deg)!important;background:#fff}' +
-      'img,video,picture,canvas,svg image,iframe,.rdl-backdrop,.rdl-toast{filter:invert(1) hue-rotate(180deg)!important}';
+      'img,video,picture,canvas,svg image,iframe,.rdl-host{filter:invert(1) hue-rotate(180deg)!important}';
     document.documentElement.appendChild(st);
   }
 
   // ---------- Tokens de URL ----------
   const RESERVED = new Set(['settings', 'orgs', 'marketplace', 'explore', 'notifications', 'pulls', 'issues', 'topics',
     'trending', 'sponsors', 'apps', 'features', 'login', 'new', 'codespaces', 'organizations', 'users', 'about',
-    'pricing', 'security', 'enterprise', 'dashboard', 'account', 'teams', 'integrations', 'docs', 'templates', 'help']);
+    'pricing', 'security', 'enterprise', 'dashboard', 'account', 'teams', 'integrations', 'docs', 'templates', 'help',
+    'stars', 'search', 'collections', 'events', 'copilot', 'blog', 'projects', 'groups', 'changelog', 'guides', 'kb',
+    'abuse', 'admin', 'sessions', 'logout', 'signup', 'customers', 'solutions', 'resources']);
 
   function tokenValues() {
     const seg = location.pathname.split('/').filter(Boolean);
@@ -402,13 +436,13 @@
       const all = await chrome.storage.sync.get(null);
       return Object.keys(all)
         .filter((k) => /^bm_\d+$/.test(k))
-        .map((k) => ({ index: Number(k.slice(3)), ...all[k] }))
+        .map((k) => ({ index: Number(k.slice(3)), name: all[k].name, ctx: all[k].ctx, code: !!all[k].code })) // só metadados: o código fica no background
         .filter((b) => b.code && Array.isArray(b.ctx) && b.ctx.includes(ctx))
         .sort((a, b) => a.index - b.index)
         .map((b) => ({
           id: 'bm-' + b.index, label: b.name || ('Bookmarklet ' + b.index), icon: 'code',
           run: async () => {
-            const res = await chrome.runtime.sendMessage({ type: 'run-bookmarklet', code: b.code });
+            const res = await chrome.runtime.sendMessage({ type: 'run-bookmarklet', index: b.index });
             if (!res || !res.ok) toast((res && res.error) || 'Falha ao executar.', true);
           }
         }));
@@ -429,7 +463,10 @@
   }
 
   // ---------- Renderização do anel ----------
-  let root = null;
+  let root = null;      // fundo do menu (dentro do Shadow DOM)
+  let rootHost = null;  // elemento hospedeiro na página
+  let opening = false;  // trava síncrona: evita abrir dois menus ao mesmo tempo
+  const segRun = new WeakMap(); // fatia -> ação (assim o clique não depende de eventos falsificáveis)
   let openedByHold = false; // aberto segurando o botão direito: soltar sobre uma fatia a escolhe
 
   function el(name, attrs = {}, html) {
@@ -462,12 +499,13 @@
 
   function close() {
     if (!root) return;
-    const r = root;
+    const r = root, h = rootHost;
     root = null;
+    rootHost = null;
     openedByHold = false;
     document.removeEventListener('keydown', onKey, true);
     r.classList.add('rdl-closing');
-    setTimeout(() => r.remove(), 120);
+    setTimeout(() => h.remove(), 120);
   }
 
   function onKey(e) {
@@ -499,14 +537,19 @@
       lg.appendChild(text);
       g.appendChild(lg);
 
-      g.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      const activate = () => {
         close();
         try {
           const r = item.run();
           if (r && r.catch) r.catch((err) => toast(String(err && err.message || err), true));
         } catch (err) { toast(String(err && err.message || err), true); }
+      };
+      segRun.set(g, activate);
+      g.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.isTrusted) return; // ignora cliques fabricados pela página
+        activate();
       });
       svg.appendChild(g);
     });
@@ -517,13 +560,19 @@
     const ct = el('text', { x: c, y: c + 4, 'text-anchor': 'middle' });
     ct.textContent = centerLabel;
     center.appendChild(ct);
-    if (canSwap) center.addEventListener('click', (e) => { e.stopPropagation(); onSwap(); });
+    if (canSwap) center.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) onSwap(); });
     svg.appendChild(center);
     return svg;
   }
 
   async function open(opts = {}) {
     if (root) { close(); return; }
+    if (opening) return;
+    opening = true;
+    try { await build(opts); } finally { opening = false; }
+  }
+
+  async function build(opts) {
     const site = detectSite();
     const general = window.RADIAL_SITES.find((s) => s.id === 'general');
 
@@ -543,8 +592,11 @@
     x = Math.min(Math.max(x, half), Math.max(half, innerWidth - half));
     y = Math.min(Math.max(y, half), Math.max(half, innerHeight - half));
 
+    const { host, shadow } = makeHost(false);
+    rootHost = host;
     root = document.createElement('div');
     root.className = 'rdl-backdrop';
+    shadow.appendChild(root);
     openedByHold = !!opts.viaHold;
     const menu = document.createElement('div');
     menu.className = 'rdl-menu';
@@ -568,7 +620,7 @@
     root.addEventListener('mouseup', (e) => { if (e.button === 0 && e.target === root) close(); });
     root.addEventListener('contextmenu', (e) => { e.preventDefault(); close(); });
     document.addEventListener('keydown', onKey, true);
-    document.documentElement.appendChild(root);
+    document.documentElement.appendChild(host);
   }
 
   // ---------- Gatilhos configuráveis (página de opções) ----------
@@ -586,6 +638,7 @@
   let suppressCtx = false;  // engole o menu nativo que viria ao soltar
 
   window.addEventListener('mousedown', (e) => {
+    if (!e.isTrusted) return; // só ações reais do usuário abrem o menu
     const m = settings.mouse;
     if (m === 'right-hold') {
       if (e.button !== 2 || root || isEditable(e.target)) return;
@@ -599,12 +652,15 @@
   }, true);
 
   window.addEventListener('mouseup', (e) => {
+    if (!e.isTrusted) return;
     if (e.button === 2) {
       pressed = false;
       if (hold) { clearTimeout(hold.timer); hold = null; }
       if (openedByHold && root) { // soltar sobre uma fatia escolhe a fatia
-        const seg = e.target.closest && e.target.closest('.rdl-seg');
-        if (seg) seg.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        const t = e.composedPath ? e.composedPath()[0] : e.target; // dentro do Shadow DOM o alvo é o hospedeiro
+        const seg = t && t.closest && t.closest('.rdl-seg');
+        const run = seg && segRun.get(seg);
+        if (run) run();
       }
       setTimeout(() => { suppressCtx = false; }, 300);
     }
@@ -620,16 +676,20 @@
     if (settings.mouse === 'right-hold' && (suppressCtx || pressed)) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 
+  // Janela perdeu o foco com o botão pressionado: zera o estado do "segurar".
+  window.addEventListener('blur', () => { pressed = false; if (hold) { clearTimeout(hold.timer); hold = null; } });
+
   window.addEventListener('keydown', (e) => {
     const k = settings.key;
-    if (!k || !k.code || e.repeat || e.code !== k.code) return;
+    if (!e.isTrusted || !k || !k.code || e.repeat || e.code !== k.code) return;
     if (e.ctrlKey !== !!k.ctrl || e.shiftKey !== !!k.shift || e.altKey !== !!k.alt || e.metaKey !== !!k.meta) return;
     if (isEditable(e.target) && !(k.ctrl || k.alt || k.meta)) return; // não atrapalha a digitação
     e.preventDefault(); e.stopPropagation();
     open();
   }, true);
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (sender.id !== chrome.runtime.id) return;
     if (msg && msg.type === 'open-radial') open();
   });
 })();

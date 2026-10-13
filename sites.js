@@ -19,6 +19,8 @@
   const G = globalThis;
 
   const hostIs = (h, ...ds) => ds.some((d) => h === d || h.endsWith('.' + d));
+  // Hosts de arquivos do Office (exatos: outlook.office.com NÃO entra aqui).
+  const OFFICE_HOST = (h) => ['office.live.com', 'www.office.com', 'office.com'].includes(h) || hostIs(h, 'sharepoint.com');
 
   // ---- construtores de passos ----
   const K = (k, o) => ({ k, ...o });
@@ -107,7 +109,7 @@
     // ---------------- Microsoft ----------------
     { id: 'word', name: 'Word Online', short: 'Word',
       m: (h, p) => /^word[\w-]*\.officeapps\.live\.com$/.test(h) ||
-        (hostIs(h, 'office.live.com', 'office.com', 'sharepoint.com') && /word|\.docx|doc\.aspx/i.test(p)),
+        (OFFICE_HOST(h) && /\/:w:\/|\/word(\/|$)|\.docx?(\?|$)/i.test(p)),
       actions: [
         A('Negrito', 'bold', K('b', { c: 1 })),
         A('Itálico', 'italic', K('i', { c: 1 })),
@@ -117,17 +119,17 @@
       ] },
     { id: 'excel', name: 'Excel Online', short: 'Excel',
       m: (h, p) => /^(excel|ms-excel)[\w-]*\.officeapps\.live\.com$/.test(h) ||
-        (hostIs(h, 'office.live.com', 'office.com', 'sharepoint.com') && /excel|\.xlsx|xlviewer/i.test(p)),
+        (OFFICE_HOST(h) && /\/:x:\/|\/excel(\/|$)|\.xlsx?(\?|$)|xlviewer/i.test(p)),
       actions: [
         A('Colar como valor', 'paste', K('v', { c: 1, s: 1 })),
         A('AutoSoma', 'sigma', K('=', { a: 1 })),
-        A('Inserir linha', 'rowPlus', K('+', { c: 1, s: 1 })),
-        A('Inserir coluna', 'colPlus', K('+', { c: 1, s: 1 })),
+        A('Inserir linha', 'rowPlus', SEQ(K(' ', { s: 1 }), K('+', { c: 1, s: 1 }))),
+        A('Inserir coluna', 'colPlus', SEQ(K(' ', { c: 1 }), K('+', { c: 1, s: 1 }))),
         A('Filtro', 'filter', K('l', { c: 1, s: 1 }))
       ] },
     { id: 'powerpoint', name: 'PowerPoint Online', short: 'PowerPoint',
       m: (h, p) => /^(powerpoint|ms-powerpoint)[\w-]*\.officeapps\.live\.com$/.test(h) ||
-        (hostIs(h, 'office.live.com', 'office.com', 'sharepoint.com') && /powerpoint|\.pptx|ppt/i.test(p)),
+        (OFFICE_HOST(h) && /\/:p:\/|\/powerpoint(\/|$)|\.pptx?(\?|$)/i.test(p)),
       actions: [
         A('Novo slide', 'slideNew', ANY(CL(['new slide', 'novo slide']), K('m', { c: 1 }))),
         A('Duplicar slide', 'copy', CL(['duplicate slide', 'duplicar slide'])),
