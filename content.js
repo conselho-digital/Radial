@@ -570,7 +570,7 @@
   // Tamanho do conteúdo (ícone + texto) de uma fatia: usa o fator escolhido (padrão 2×) e só encolhe
   // se o texto não couber na fatia.
   function fitContent(label, n) {
-    const scale = Math.min(3, Math.max(1, Number(settings.contentScale) || 2));
+    const scale = Math.min(3, Math.max(1, Number(settings.contentScale) || 1.5));
     const mid = (R_IN + R_OUT) / 2 + 4;
     const chord = n > 1 ? 2 * mid * Math.sin(Math.PI / n) * 0.9 : 2 * R_OUT * 0.8;
     const availH = (R_OUT - R_IN) - 12;
@@ -754,7 +754,7 @@
   // ---------- Gatilhos configuráveis (página de opções) ----------
   // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null,
   //              size: px, sticky: bool (soltar ativa a última fatia), cancel: 'none'|'right'|'middle'|'back'|'forward' }
-  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 2 };
+  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5 };
   let settings = { ...DEFAULTS };
   const applySettings = (s) => { settings = { ...DEFAULTS, ...(s || {}) }; };
   try {

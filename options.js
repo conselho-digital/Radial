@@ -109,7 +109,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 2 };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5 };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -135,8 +135,8 @@ function showCfg() {
   $('holdBox').style.display = cfg.mouse === 'right-hold' ? '' : 'none';
   $('size').value = cfg.size;
   $('sizeOut').textContent = cfg.size + ' px';
-  $('contentScale').value = Math.round((cfg.contentScale || 2) * 100);
-  $('contentOut').textContent = Math.round((cfg.contentScale || 2) * 100) + '%';
+  $('contentScale').value = Math.round((cfg.contentScale || 1.5) * 100);
+  $('contentOut').textContent = Math.round((cfg.contentScale || 1.5) * 100) + '%';
   $('sticky').checked = !!cfg.sticky;
   const trig = { middle: 'middle', back: 'back', forward: 'forward', 'right-hold': 'right' }[cfg.mouse];
   if (trig && cfg.cancel === trig) cfg.cancel = 'none';
@@ -167,7 +167,7 @@ document.querySelectorAll('input[name="mouseTrig"]').forEach((r) => {
 $('size').oninput = () => { $('sizeOut').textContent = $('size').value + ' px'; };
 $('size').onchange = () => { cfg.size = Number($('size').value) || 380; showCfg(); saveCfg(); };
 $('contentScale').oninput = () => { $('contentOut').textContent = $('contentScale').value + '%'; };
-$('contentScale').onchange = () => { cfg.contentScale = (Number($('contentScale').value) || 200) / 100; showCfg(); saveCfg(); };
+$('contentScale').onchange = () => { cfg.contentScale = (Number($('contentScale').value) || 150) / 100; showCfg(); saveCfg(); };
 $('sticky').onchange = () => { cfg.sticky = $('sticky').checked; saveCfg(); };
 document.querySelectorAll('input[name="cancelBtn"]').forEach((r) => {
   r.onchange = () => { if (r.checked) { cfg.cancel = r.value; showCfg(); saveCfg(); } };
