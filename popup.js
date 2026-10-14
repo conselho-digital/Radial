@@ -89,12 +89,14 @@ function row(name, badgeText, sub, muted) {
     ? t('Limit of {max} options in this ring (2 radials of 5). Remove one first.', { max: LIMIT }) : null);
 
   // ----- Listas: um cartão por anel (este site e Geral); grupos de 5 = um radial cada -----
-  async function renderRing(box, ids, title, builtinList) {
+  // Anel com alça de arrastar: a ordem (padrão + suas) é salva por anel e vale também no radial.
+  async function renderRing(box, ids, title, builtinList, builtinSite, orderKey) {
     const custom = await customIn(...ids);
-    const entries = [
-      ...builtinList.map((a) => ({ li: () => row(I.label(a.label), t('Default'), '', true) })),
-      ...custom.map((o) => ({ li: () => customRow(o, ids) }))
+    let entries = [
+      ...builtinList.map((a) => ({ key: 'b:' + builtinSite + ':' + a.label, li: () => row(I.label(a.label), t('Default'), '', true), name: I.label(a.label) })),
+      ...custom.map((o) => ({ key: 'o:' + o.id, li: () => customRow(o, ids), name: o.name }))
     ];
+    entries = S.applyOrder(entries, await S.getOrder(orderKey));
     const card = document.createElement('section');
     card.className = 'card';
     card.innerHTML = '<div class="card-head"><h2></h2><p class="lead"></p></div>';
@@ -102,6 +104,14 @@ function row(name, badgeText, sub, muted) {
     card.querySelector('.lead').textContent = t('{n}/{max} options', { n: entries.length, max: LIMIT });
     const ul = document.createElement('ul');
     ul.className = 'list';
+
+    const move = async (key, toIndex) => {
+      const keys = entries.map((e) => e.key).filter((k) => k !== key);
+      keys.splice(Math.max(0, Math.min(keys.length, toIndex)), 0, key);
+      await S.setOrder(orderKey, keys);
+      await renderList();
+    };
+
     entries.forEach((en, i) => {
       if (i % PAGE === 0) {
         const h = document.createElement('li');
@@ -109,7 +119,46 @@ function row(name, badgeText, sub, muted) {
         h.textContent = i < LIMIT ? t('Radial {n}', { n: i / PAGE + 1 }) : t('Over the limit (not shown)');
         ul.appendChild(h);
       }
-      ul.appendChild(en.li());
+      const li = en.li();
+      li.dataset.key = en.key;
+      const grip = document.createElement('button');
+      grip.type = 'button';
+      grip.className = 'grip';
+      grip.title = grip.ariaLabel = t('Reorder {name} (drag, or use the arrow keys)', { name: en.name });
+      grip.innerHTML = E.icon_('grip');
+      // Só a alça inicia o arraste (o resto da linha não).
+      grip.onmousedown = () => { li.draggable = true; };
+      grip.onmouseup = () => { li.draggable = false; };
+      grip.onkeydown = (e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        move(en.key, i + (e.key === 'ArrowUp' ? -1 : 1)).then(() => {
+          const g = $('rings').querySelector('[data-key="' + CSS.escape(en.key) + '"] .grip');
+          if (g) g.focus();
+        });
+      };
+      li.prepend(grip);
+      li.ondragstart = (e) => { e.dataTransfer.setData('text/plain', en.key); e.dataTransfer.effectAllowed = 'move'; li.classList.add('dragging'); };
+      li.ondragend = () => { li.draggable = false; li.classList.remove('dragging'); ul.querySelectorAll('.drop-before,.drop-after').forEach((x) => x.classList.remove('drop-before', 'drop-after')); };
+      li.ondragover = (e) => {
+        e.preventDefault();
+        const r = li.getBoundingClientRect();
+        const before = e.clientY < r.top + r.height / 2;
+        ul.querySelectorAll('.drop-before,.drop-after').forEach((x) => x.classList.remove('drop-before', 'drop-after'));
+        li.classList.add(before ? 'drop-before' : 'drop-after');
+      };
+      li.ondrop = (e) => {
+        e.preventDefault();
+        const dragged = e.dataTransfer.getData('text/plain');
+        const r = li.getBoundingClientRect();
+        const before = e.clientY < r.top + r.height / 2;
+        if (!dragged || dragged === en.key) return;
+        const keys = entries.map((x) => x.key).filter((k) => k !== dragged);
+        let idx = keys.indexOf(en.key) + (before ? 0 : 1);
+        keys.splice(idx, 0, dragged);
+        S.setOrder(orderKey, keys).then(renderList);
+      };
+      ul.appendChild(li);
     });
     if (!entries.length) ul.appendChild(Object.assign(document.createElement('li'), { className: 'empty-state', textContent: t('No options in this ring yet.') }));
     card.appendChild(ul);
@@ -120,8 +169,9 @@ function row(name, badgeText, sub, muted) {
   async function renderList() {
     const box = $('rings');
     box.textContent = '';
-    const n = await renderRing(box, mainIds, known ? t('{name} ring', { name: I.label(site.short) }) : t('General ring + this site'), mainBuiltins);
-    if (known) await renderRing(box, ['general'], t('General ring (all sites)'), general.actions);
+    const n = await renderRing(box, mainIds, known ? t('{name} ring', { name: I.label(site.short) }) : t('General ring + this site'),
+      mainBuiltins, known ? site.id : 'general', known ? site.id : ringId);
+    if (known) await renderRing(box, ['general'], t('General ring (all sites)'), general.actions, 'general', 'general');
     $('addBtn').disabled = n >= LIMIT;
   }
 

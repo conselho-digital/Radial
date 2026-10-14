@@ -3,7 +3,7 @@ importScripts('store.js', 'i18n-labels.js', 'i18n-ui.js', 'i18n.js');
 const t = (s, v) => RADIAL_I18N.t(s, v);
 
 const OPEN_MSG = { type: 'open-radial' };
-const CONTENT_FILES = ['sites.js', 'i18n-labels.js', 'i18n-ui.js', 'i18n.js', 'radial-css.js', 'content.js'];
+const CONTENT_FILES = ['sites.js', 'store.js', 'i18n-labels.js', 'i18n-ui.js', 'i18n.js', 'radial-css.js', 'content.js'];
 
 // Abre o menu na aba ativa. Se o content script ainda não existe na aba
 // (aba aberta antes da instalação), injeta e tenta de novo.

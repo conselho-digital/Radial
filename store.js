@@ -30,6 +30,21 @@
 
   const remove = (id) => chrome.storage.local.remove(PREFIX + id);
 
+  // Ordem escolhida pelo usuário para um anel: lista de chaves ('b:<site>:<rótulo>' padrão, 'o:<id>' opção).
+  // Itens fora da lista (novos) ficam no fim, na ordem original.
+  const ORDER = 'order_';
+  async function getOrder(ring) {
+    const k = ORDER + ring;
+    return (await chrome.storage.local.get(k))[k] || [];
+  }
+  const setOrder = (ring, keys) => chrome.storage.local.set({ [ORDER + ring]: keys });
+  function applyOrder(items, order) {
+    if (!order || !order.length) return items;
+    const pos = new Map(order.map((k, i) => [k, i]));
+    const rank = (it, i) => (pos.has(it.key) ? pos.get(it.key) : 1e6 + i);
+    return items.map((it, i) => ({ it, r: rank(it, i) })).sort((a, b) => a.r - b.r).map((x) => x.it);
+  }
+
   // Versões antigas guardavam bookmarklets em chrome.storage.sync (bm_<n>, limite ~8 KB cada).
   // Move tudo para o armazenamento local; idempotente.
   async function migrate() {
@@ -48,5 +63,5 @@
     } catch (_) { /* sem sync: nada a migrar */ }
   }
 
-  G.RADIAL_STORE = { list, get, save, remove, migrate };
+  G.RADIAL_STORE = { list, get, save, remove, migrate, getOrder, setOrder, applyOrder };
 })();

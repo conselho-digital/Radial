@@ -89,6 +89,7 @@ globalThis.RADIAL_UI = {
   "No options in this ring yet.": ["Nenhuma opção neste anel ainda.", "Aucune option dans cet anneau pour l'instant.", "Nessuna opzione in questo anello per ora.", "Noch keine Optionen in diesem Ring.", "لا خيارات في هذه الحلقة بعد.", "এই রিংয়ে এখনও কোনো বিকল্প নেই।"],
   "{name} ring": ["Anel de {name}", "Anneau {name}", "Anello {name}", "Ring {name}", "حلقة {name}", "{name} রিং"],
   "General ring + this site": ["Anel Geral + este site", "Anneau Général + ce site", "Anello Generale + questo sito", "Ring „Allgemein“ + diese Website", "الحلقة العامة + هذا الموقع", "সাধারণ রিং + এই সাইট"],
+  "Reorder {name} (drag, or use the arrow keys)": ["Reordenar {name} (arraste ou use as setas)", "Réorganiser {name} (glisser ou touches fléchées)", "Riordina {name} (trascina o usa le frecce)", "{name} neu anordnen (ziehen oder Pfeiltasten)", "إعادة ترتيب {name} (اسحب أو استخدم الأسهم)", "{name} পুনর্বিন্যাস (টানুন বা তীর কী ব্যবহার করুন)"],
   "This site ring": ["Anel deste site", "Anneau de ce site", "Anello di questo sito", "Ring dieser Website", "حلقة هذا الموقع", "এই সাইটের রিং"],
   "General ring (all sites)": ["Anel Geral (todos os sites)", "Anneau Général (tous les sites)", "Anello Generale (tutti i siti)", "Ring „Allgemein“ (alle Websites)", "الحلقة العامة (كل المواقع)", "সাধারণ রিং (সব সাইট)"],
   "Bookmarklet": ["Bookmarklet", "Bookmarklet", "Bookmarklet", "Bookmarklet", "Bookmarklet", "বুকমার্কলেট"],

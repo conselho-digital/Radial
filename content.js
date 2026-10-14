@@ -456,9 +456,13 @@
   // o código JavaScript é lido pelo background na hora de executar.
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
 
+  let orders = {};  // ordem escolhida pelo usuário, por anel (veja store.js)
+
   async function loadOptions() {
     try {
       const all = await chrome.storage.local.get(null);
+      orders = {};
+      Object.keys(all).filter((k) => k.startsWith('order_')).forEach((k) => { orders[k.slice(6)] = all[k]; });
       return Object.keys(all)
         .filter((k) => k.startsWith('opt_') && Array.isArray(all[k].ctx))
         .map((k) => ({ id: k.slice(4), type: all[k].type, name: all[k].name, ctx: all[k].ctx, keys: all[k].keys, ref: all[k].ref, hasCode: !!all[k].code, t: all[k].t || 0 }))
@@ -479,7 +483,7 @@
   function optionItem(o) {
     const act = o.type === 'action' ? findAction(o.ref) : null;
     return {
-      id: 'opt-' + o.id, label: (act ? I.label(act.label) : o.name) || tr('Option'), icon: act ? act.icon : o.type === 'keys' ? 'keyboard' : 'code',
+      key: 'o:' + o.id, id: 'opt-' + o.id, label: (act ? I.label(act.label) : o.name) || tr('Option'), icon: act ? act.icon : o.type === 'keys' ? 'keyboard' : 'code',
       run: async () => {
         if (act) { if (!(await runStep(act.do))) toast(tr('Could not find "{name}" on this page.', { name: I.label(act.label) }), true); return; }
         if (o.type === 'keys') { await runKeys(o.keys); return; }
@@ -492,7 +496,7 @@
   // Transforma as ações do registro em itens do anel.
   function siteItems(site) {
     return site.actions.map((a, i) => ({
-      id: site.id + '-' + i, label: I.label(a.label), icon: a.icon,
+      key: 'b:' + site.id + ':' + a.label, id: site.id + '-' + i, label: I.label(a.label), icon: a.icon,
       run: async () => {
         const ok = await runStep(a.do);
         if (!ok) toast(tr('Could not find "{name}" on this page.', { name: I.label(a.label) }), true);
@@ -638,13 +642,13 @@
     const rings = {};
     const names = {};
     if (site.id !== 'general') {
-      rings.main = [...siteItems(site), ...pick(site.id, hostRing)];
+      rings.main = RADIAL_STORE.applyOrder([...siteItems(site), ...pick(site.id, hostRing)], orders[site.id]);
       names.main = I.label(site.short);
     }
     // Site fora da lista: não há anel de site; as opções do domínio se juntam às do Geral num só anel
     // (as 4 padrão primeiro, depois as suas), dividido em grupos de 5.
     const generalIds = site.id === 'general' ? ['general', hostRing] : ['general'];
-    rings.general = [...siteItems(general), ...pick(...generalIds)];
+    rings.general = RADIAL_STORE.applyOrder([...siteItems(general), ...pick(...generalIds)], orders[site.id === 'general' ? hostRing : 'general']);
     names.general = I.label(general.short);
     // Cada anel tem até 10 opções, em grupos (radiais) de 5. O centro passa de um grupo ao próximo.
     const pages = [];
