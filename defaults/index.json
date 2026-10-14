@@ -73,5 +73,50 @@
       "shift": false,
       "meta": false
     }
+  },
+  {
+    "id": "6",
+    "name": "📥",
+    "file": "6.txt",
+    "order": 6,
+    "shortcut": {
+      "key": "6",
+      "code": "Digit6",
+      "keyCode": 54,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
+  },
+  {
+    "id": "7",
+    "name": "⚡",
+    "file": "7.txt",
+    "order": 7,
+    "shortcut": {
+      "key": "7",
+      "code": "Digit7",
+      "keyCode": 55,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
+  },
+  {
+    "id": "8",
+    "name": "🖌️",
+    "file": "8.txt",
+    "order": 8,
+    "shortcut": {
+      "key": "8",
+      "code": "Digit8",
+      "keyCode": 56,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
   }
 ]
