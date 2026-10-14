@@ -37,7 +37,7 @@ async function injectIntoOpenTabs() {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES }).catch(() => {})));
 }
 
-// Bookmarklets que já vêm com a extensão: defaults/index.json lista { id, name, file } e cada código fica
+// Bookmarklets que já vêm com a extensão: defaults/index.json lista { id, name, file, shortcut?, order? } e cada código fica
 // em defaults/<file>, guardado exatamente como foi enviado. Cada um é criado uma vez (por id); se o usuário
 // apagar ou editar, não é recriado nem sobrescrito. Entram na lista de bookmarklets salvos, fora do radial.
 async function seedDefaults() {
@@ -48,7 +48,7 @@ async function seedDefaults() {
     for (const d of index) {
       if (done.has(d.id)) continue;
       const code = await (await fetch(chrome.runtime.getURL('defaults/' + d.file))).text();
-      await chrome.storage.local.set({ ['opt_def_' + d.id]: { type: 'js', name: d.name, code, ctx: d.ctx || [], t: Date.now() } });
+      await chrome.storage.local.set({ ['opt_def_' + d.id]: { type: 'js', name: d.name, code, ctx: d.ctx || [], ...(d.shortcut ? { shortcut: d.shortcut } : {}), t: d.order || Date.now() } });
       done.add(d.id);
     }
     await chrome.storage.local.set({ defaults_seeded: [...done] });

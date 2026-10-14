@@ -1,1 +1,3 @@
-[]
+[
+  { "id": "1", "name": "📋", "file": "1.txt", "order": 1, "shortcut": { "key": "1", "code": "Digit1", "keyCode": 49, "alt": true, "ctrl": false, "shift": false, "meta": false } }
+]
