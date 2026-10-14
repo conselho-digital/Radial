@@ -1,3 +1,77 @@
 [
-  { "id": "1", "name": "📋", "file": "1.txt", "order": 1, "shortcut": { "key": "1", "code": "Digit1", "keyCode": 49, "alt": true, "ctrl": false, "shift": false, "meta": false } }
+  {
+    "id": "1",
+    "name": "📋",
+    "file": "1.txt",
+    "order": 1,
+    "shortcut": {
+      "key": "1",
+      "code": "Digit1",
+      "keyCode": 49,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
+  },
+  {
+    "id": "2",
+    "name": "⏱️",
+    "file": "2.txt",
+    "order": 2,
+    "shortcut": {
+      "key": "2",
+      "code": "Digit2",
+      "keyCode": 50,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
+  },
+  {
+    "id": "3",
+    "name": "🌍",
+    "file": "3.txt",
+    "order": 3,
+    "shortcut": {
+      "key": "3",
+      "code": "Digit3",
+      "keyCode": 51,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
+  },
+  {
+    "id": "4",
+    "name": "📦",
+    "file": "4.txt",
+    "order": 4,
+    "shortcut": {
+      "key": "4",
+      "code": "Digit4",
+      "keyCode": 52,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
+  },
+  {
+    "id": "5",
+    "name": "🗝️",
+    "file": "5.txt",
+    "order": 5,
+    "shortcut": {
+      "key": "5",
+      "code": "Digit5",
+      "keyCode": 53,
+      "alt": true,
+      "ctrl": false,
+      "shift": false,
+      "meta": false
+    }
+  }
 ]
