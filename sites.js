@@ -12,7 +12,7 @@
 //   { type }                 digita texto no campo ativo
 //   { ctx }                  clique direito (menu de contexto) no seletor
 //   { copy }                 copia texto (aceita tokens)
-//   { fn:'dark' | 'copyUrl' }
+//   { fn:'dark' | 'copyUrl' | 'top' | 'bottom' }
 //   { seq:[...] }            executa em ordem  |  { any:[...] } tenta até um funcionar
 //   { wait: ms }
 (() => {
@@ -30,7 +30,8 @@
   const ANY = (...s) => ({ any: s });
   const W = (wait) => ({ wait });
   const SEARCH = { search: 1 };
-  const A = (label, icon, step) => ({ label, icon, do: step });
+  // o = { opt:1 } marca ação que existe na lista de "Ação pronta" mas não entra no anel por padrão
+  const A = (label, icon, step, o) => ({ label, icon, do: step, ...o });
 
   const DOCS = { to: 'docs' };
   const insertMenu = (t, sub) => ({ menu: 'docs-insert-menu', t, sub });
@@ -517,7 +518,8 @@
       A('Recarregar', 'refresh', { fn: 'reload' }),
       A('Copiar URL', 'link', { fn: 'copyUrl' }),
       A('Topo', 'top', { fn: 'top' }),
-      A('Modo escuro', 'moon', { fn: 'dark' })
+      A('Modo escuro', 'moon', { fn: 'dark' }),
+      A('Fim', 'bottom', { fn: 'bottom' }, { opt: 1 })
     ]
   };
 

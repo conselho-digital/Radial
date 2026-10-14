@@ -63,6 +63,11 @@ async function seedDefaults() {
       const key = 'preset:' + p.id;
       if (done.has(key)) continue;
       const ring = 'host:' + p.host;
+      // Ações prontas do registro (sites.js) que a predefinição cria neste anel.
+      for (const act of p.actions || []) {
+        const k = 'opt_def_' + act.id;
+        if (!(await chrome.storage.local.get(k))[k]) await chrome.storage.local.set({ [k]: { type: 'action', name: act.ref.label, ref: act.ref, ctx: [ring], t: Date.now() } });
+      }
       for (const id of p.add || []) {
         const k = 'opt_def_' + id;
         const o = (await chrome.storage.local.get(k))[k];

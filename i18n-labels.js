@@ -16,6 +16,7 @@ globalThis.RADIAL_LABELS = {
   "Recarregar": ["Reload", "Recharger", "Ricarica", "Neu laden", "إعادة تحميل", "রিলোড"],
   "Copiar URL": ["Copy URL", "Copier l'URL", "Copia URL", "URL kopieren", "نسخ الرابط", "URL কপি"],
   "Topo": ["Top", "Haut", "Inizio", "Nach oben", "للأعلى", "উপরে"],
+  "Fim": ["Bottom", "Bas", "Fine", "Ende", "للأسفل", "নিচে"],
   "Modo escuro": ["Dark mode", "Mode sombre", "Modalità scura", "Dunkelmodus", "الوضع الداكن", "ডার্ক মোড"],
 
   // ---- Google Workspace / Microsoft 365 ----

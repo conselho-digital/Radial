@@ -126,7 +126,7 @@
   ],
   "presets": [
     {
-      "id": "dynamics-2",
+      "id": "dynamics-3",
       "host": "isp.crm4.dynamics.com",
       "add": [
         "1",
@@ -135,7 +135,24 @@
       ],
       "hide": [
         "b:general:Recarregar",
-        "b:general:Copiar URL"
+        "b:general:Copiar URL",
+        "b:general:Modo escuro"
+      ],
+      "actions": [
+        {
+          "id": "dyn-bottom",
+          "ref": {
+            "site": "general",
+            "label": "Fim"
+          }
+        }
+      ],
+      "order": [
+        "b:general:Topo",
+        "o:def_dyn-bottom",
+        "o:def_1",
+        "o:def_3",
+        "o:def_9"
       ]
     },
     {

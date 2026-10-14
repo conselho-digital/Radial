@@ -83,7 +83,8 @@ function row(name, badgeText, sub, muted) {
   const customIn = async (...ids) => (await S.list()).filter((o) => (o.ctx || []).some((c) => ids.includes(c)));
   // Site fora da lista: um só anel (Geral + opções do domínio); site conhecido: o anel do site.
   const merged = !known;
-  const mainBuiltins = merged ? general.actions : builtins;
+  const generalDefaults = general.actions.filter((a) => !a.opt);
+  const mainBuiltins = merged ? generalDefaults : builtins;
   const mainIds = [ringId, 'general'];
   const mainOrderKey = known ? site.id : ringId;
   const limitMsg = async () => (((await visibleBuiltins(mainBuiltins, known ? site.id : 'general', mainOrderKey)).length + (await customIn(...mainIds)).length) >= LIMIT
@@ -208,7 +209,7 @@ function row(name, badgeText, sub, muted) {
     const box = $('rings');
     box.textContent = '';
     const n = await renderRing(box, mainIds, known ? t('{name} ring', { name: I.label(site.short) }) : t('General ring + this site'),
-      mainBuiltins, known ? site.id : 'general', known ? site.id : ringId, known ? general.actions : []);
+      mainBuiltins, known ? site.id : 'general', known ? site.id : ringId, known ? generalDefaults : []);
     $('addBtn').disabled = (await limitMsg()) !== null && n >= LIMIT;
   }
 

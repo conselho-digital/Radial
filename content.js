@@ -68,6 +68,7 @@
     layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
     crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/>',
     image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m21 16-5-5-9 9"/>',
+    bottom: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
     keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
     play: '<path d="m7 4 13 8-13 8z"/>',
     playPause: '<path d="M4 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/>',
@@ -344,6 +345,19 @@
     return false;
   }
 
+  // Rola até o topo/fim. Apps como o Dynamics rolam dentro de um contêiner, não na janela: sobe a partir do
+  // elemento sob o cursor até achar um que role; se não houver, rola a janela.
+  function scrollEdge(toBottom) {
+    const canScroll = (el) => el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
+    // Ponto onde o radial abriu (o menu cobre a tela: ignora o próprio menu ao procurar o elemento).
+    const px = openedAt.x ?? mouse.x, py = openedAt.y ?? mouse.y;
+    let el = px == null ? null : document.elementsFromPoint(px, py).find((e) => !e.classList.contains('rdl-host')) || null;
+    while (el && el !== document.body && el !== document.documentElement && !canScroll(el)) el = el.parentElement;
+    const doc = document.scrollingElement || document.documentElement;
+    const target = el && el !== document.body && el !== document.documentElement ? el : doc;
+    target.scrollTo({ top: toBottom ? target.scrollHeight : 0, behavior: 'smooth' });
+  }
+
   function toggleDarkMode() {
     const id = 'rdl-dark-style';
     const old = document.getElementById(id);
@@ -452,7 +466,8 @@
     }
     if (step.fn === 'reload') { location.reload(); return true; }
     if (step.fn === 'copyUrl') { await copyText(location.href); toast(tr('URL copied')); return true; }
-    if (step.fn === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return true; }
+    if (step.fn === 'top') { scrollEdge(false); return true; }
+    if (step.fn === 'bottom') { scrollEdge(true); return true; }
     if (step.fn === 'dark') { toggleDarkMode(); return true; }
     return false;
   }
@@ -504,7 +519,7 @@
 
   // Transforma as ações do registro em itens do anel.
   function siteItems(site) {
-    return site.actions.map((a, i) => ({
+    return site.actions.filter((a) => !a.opt).map((a, i) => ({
       key: 'b:' + site.id + ':' + a.label, id: site.id + '-' + i, label: I.label(a.label), icon: a.icon,
       run: async () => {
         const ok = await runStep(a.do);
@@ -519,6 +534,7 @@
   let opening = false;  // trava síncrona: evita abrir dois menus ao mesmo tempo
   const segRun = new WeakMap(); // fatia -> ação (assim o clique não depende de eventos falsificáveis)
   let openedBtn = null;     // botão do mouse que abriu o menu e ainda está pressionado: soltar escolhe a fatia
+  let openedAt = { x: null, y: null }; // onde o menu abriu
   let centerSwap = null;    // passa para o próximo grupo (soltar o botão sobre o centro faz o mesmo)
   let armed = null;         // última fatia sob o mouse (só com "manter última opção" ligado)
 
@@ -686,6 +702,7 @@
     box.style.cssText = `all:initial;position:fixed;width:${SIZE}px;height:${SIZE}px;left:${x - SIZE / 2}px;top:${y - SIZE / 2}px;transform:scale(${k});transform-origin:center`;
     const menu = document.createElement('div');
     menu.className = 'rdl-menu';
+    openedAt = { x, y };
     menu.style.left = '0px';
     menu.style.top = '0px';
     box.appendChild(menu);

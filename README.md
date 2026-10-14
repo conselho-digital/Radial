@@ -28,7 +28,7 @@ Dois tipos, criados pelo popup ou pela página de configurações:
 - **JavaScript:** código/bookmarklet, sem limite de 8 KB (guardado em `chrome.storage.local`, não sincroniza entre dispositivos). Bookmarklets antigos (`sync`) são migrados sozinhos.
 
 ## Bookmarklets padrão
-O código fica em `defaults/<arquivo>.txt`, exatamente como enviado. `defaults/index.json` tem três partes: `bookmarklets` (`id`, `name`, `file`, `shortcut`), `remove` (ids a apagar, uma vez) e `presets` (por domínio: quais bookmarklets entram no radial, a ordem e quais opções padrão ficam escondidas). Tudo é aplicado uma vez na instalação/atualização; depois disso, o que o usuário mudar é respeitado.
+O código fica em `defaults/<arquivo>.txt`, exatamente como enviado. `defaults/index.json` tem três partes: `bookmarklets` (`id`, `name`, `file`, `shortcut`), `remove` (ids a apagar, uma vez) e `presets` (por domínio: quais bookmarklets e ações prontas entram no radial, a ordem e quais opções padrão ficam escondidas). Tudo é aplicado uma vez na instalação/atualização; depois disso, o que o usuário mudar é respeitado.
 
 ## Segurança
 - Menu e avisos ficam em Shadow DOM; a página não consegue estilizá-los.
