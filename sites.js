@@ -127,7 +127,13 @@
       m: (h, p) => /^(excel|ms-excel)[\w-]*\.officeapps\.live\.com$/.test(h) ||
         (OFFICE_HOST(h) && /\/:x:\/|\/excel(\/|$)|\.xlsx?(\?|$)|xlviewer/i.test(p)),
       actions: [
-        A('Colar como valor', 'paste', K('v', { c: 1, s: 1 })),
+        // Tecla simulada não cola (o navegador só cola com tecla de verdade): usa a faixa Página Inicial >
+        // Colar > Valores. Se não achar, tenta a tecla como plano B.
+        A('Colar como valor', 'paste', ANY(
+          SEQ(CL(['paste options', 'paste dropdown', 'more paste options', 'opções de colagem', 'opções de colar'],
+            ['button[aria-label*="paste option" i]', 'button[aria-label="Paste" i][aria-haspopup]', 'button[data-unique-id*="Paste" i][aria-haspopup]']),
+            W(350), CL(['paste values', 'values', 'colar valores', 'valores'])),
+          K('v', { c: 1, s: 1 }))),
         A('AutoSoma', 'sigma', K('=', { a: 1 })),
         A('Inserir linha', 'rowPlus', SEQ(K(' ', { s: 1 }), K('+', { c: 1, s: 1 }))),
         A('Inserir coluna', 'colPlus', SEQ(K(' ', { c: 1 }), K('+', { c: 1, s: 1 }))),
