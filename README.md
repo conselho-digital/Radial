@@ -27,9 +27,6 @@ Dois tipos, criados pelo popup ou pela página de configurações:
 - **Bookmarklet com atalho:** na página de configurações, preencha nome, conteúdo e grave um atalho de teclado; ele roda em qualquer página. Opcionalmente também aparece no radial.
 - **JavaScript:** código/bookmarklet, sem limite de 8 KB (guardado em `chrome.storage.local`, não sincroniza entre dispositivos). Bookmarklets antigos (`sync`) são migrados sozinhos.
 
-## Bookmarklets padrão
-O código fica em `defaults/<arquivo>.txt`, exatamente como enviado, e é listado em `defaults/index.json` (`{ "id", "name", "file" }`). Na instalação/atualização cada um é criado uma vez na lista de bookmarklets salvos; se for apagado ou editado, não volta nem é sobrescrito.
-
 ## Segurança
 - Menu e avisos ficam em Shadow DOM; a página não consegue estilizá-los.
 - Só eventos reais (`isTrusted`) abrem o menu ou escolhem uma fatia.
