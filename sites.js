@@ -35,14 +35,19 @@
 
   const DOCS = { to: 'docs' };
   const insertMenu = (t, sub) => ({ menu: 'docs-insert-menu', t, sub });
+  const editMenu = (t, sub) => ({ menu: 'docs-edit-menu', t, sub });
 
   const SITES = [
     // ---------------- Google Workspace ----------------
     { id: 'sheets', name: 'Google Planilhas', short: 'Planilhas',
       m: (h, p) => h === 'docs.google.com' && p.startsWith('/spreadsheets'),
       actions: [
-        A('Copiar valor', 'copy', K('c', { c: 1, ...DOCS })),
-        A('Colar como valor', 'paste', K('v', { c: 1, s: 1, ...DOCS })),
+        // Copiar/colar não funcionam por tecla simulada (o navegador só copia/cola com tecla de verdade):
+        // usa o menu Editar e deixa a tecla como plano B.
+        A('Copiar valor', 'copy', ANY(editMenu(['copy', 'copiar']), K('c', { c: 1, ...DOCS }))),
+        A('Colar como valor', 'paste', ANY(
+          editMenu(['values only', 'somente valores', 'apenas valores', 'solo valori', 'nur werte'], ['paste special', 'colar especial', 'incolla speciale', 'inhalte einfügen']),
+          K('v', { c: 1, s: 1, ...DOCS }))),
         A('AutoSoma', 'sigma', insertMenu(['sum', 'soma'], ['function', 'função', 'funcao'])),
         A('Inserir linha', 'rowPlus', insertMenu(['row above', 'linha acima', 'rows above', 'linhas acima'], ['rows', 'linhas'])),
         A('Inserir coluna', 'colPlus', insertMenu(['column left', 'coluna à esquerda', 'coluna a esquerda', 'columns left'], ['columns', 'colunas'])),
