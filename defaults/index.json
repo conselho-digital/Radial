@@ -1,122 +1,143 @@
-[
-  {
-    "id": "1",
-    "name": "📋",
-    "file": "1.txt",
-    "order": 1,
-    "shortcut": {
-      "key": "1",
-      "code": "Digit1",
-      "keyCode": 49,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
+{
+  "bookmarklets": [
+    {
+      "id": "1",
+      "name": "📋",
+      "file": "1.txt",
+      "order": 1,
+      "shortcut": {
+        "key": "1",
+        "code": "Digit1",
+        "keyCode": 49,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
+    },
+    {
+      "id": "2",
+      "name": "⏱️",
+      "file": "2.txt",
+      "order": 2,
+      "shortcut": {
+        "key": "2",
+        "code": "Digit2",
+        "keyCode": 50,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
+    },
+    {
+      "id": "3",
+      "name": "🌍",
+      "file": "3.txt",
+      "order": 3,
+      "shortcut": {
+        "key": "3",
+        "code": "Digit3",
+        "keyCode": 51,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
+    },
+    {
+      "id": "4",
+      "name": "📦",
+      "file": "4.txt",
+      "order": 4,
+      "shortcut": {
+        "key": "4",
+        "code": "Digit4",
+        "keyCode": 52,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
+    },
+    {
+      "id": "5",
+      "name": "🗝️",
+      "file": "5.txt",
+      "order": 5,
+      "shortcut": {
+        "key": "5",
+        "code": "Digit5",
+        "keyCode": 53,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
+    },
+    {
+      "id": "6",
+      "name": "📥",
+      "file": "6.txt",
+      "order": 6,
+      "shortcut": {
+        "key": "6",
+        "code": "Digit6",
+        "keyCode": 54,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
+    },
+    {
+      "id": "8",
+      "name": "🖌️",
+      "file": "8.txt",
+      "order": 8,
+      "shortcut": {
+        "key": "8",
+        "code": "Digit8",
+        "keyCode": 56,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
     }
-  },
-  {
-    "id": "2",
-    "name": "⏱️",
-    "file": "2.txt",
-    "order": 2,
-    "shortcut": {
-      "key": "2",
-      "code": "Digit2",
-      "keyCode": 50,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
+  ],
+  "remove": [
+    "7"
+  ],
+  "presets": [
+    {
+      "id": "dynamics",
+      "host": "isp.crm4.dynamics.com",
+      "add": [
+        "1",
+        "3"
+      ]
+    },
+    {
+      "id": "sicharge",
+      "host": "configuration.sicharge.technology",
+      "add": [
+        "2",
+        "4",
+        "5",
+        "6",
+        "8"
+      ],
+      "hide": [
+        "b:general:Recarregar"
+      ],
+      "order": [
+        "o:def_2",
+        "o:def_4",
+        "o:def_5",
+        "o:def_6",
+        "o:def_8"
+      ]
     }
-  },
-  {
-    "id": "3",
-    "name": "🌍",
-    "file": "3.txt",
-    "order": 3,
-    "shortcut": {
-      "key": "3",
-      "code": "Digit3",
-      "keyCode": 51,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
-    }
-  },
-  {
-    "id": "4",
-    "name": "📦",
-    "file": "4.txt",
-    "order": 4,
-    "shortcut": {
-      "key": "4",
-      "code": "Digit4",
-      "keyCode": 52,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
-    }
-  },
-  {
-    "id": "5",
-    "name": "🗝️",
-    "file": "5.txt",
-    "order": 5,
-    "shortcut": {
-      "key": "5",
-      "code": "Digit5",
-      "keyCode": 53,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
-    }
-  },
-  {
-    "id": "6",
-    "name": "📥",
-    "file": "6.txt",
-    "order": 6,
-    "shortcut": {
-      "key": "6",
-      "code": "Digit6",
-      "keyCode": 54,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
-    }
-  },
-  {
-    "id": "7",
-    "name": "⚡",
-    "file": "7.txt",
-    "order": 7,
-    "shortcut": {
-      "key": "7",
-      "code": "Digit7",
-      "keyCode": 55,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
-    }
-  },
-  {
-    "id": "8",
-    "name": "🖌️",
-    "file": "8.txt",
-    "order": 8,
-    "shortcut": {
-      "key": "8",
-      "code": "Digit8",
-      "keyCode": 56,
-      "alt": true,
-      "ctrl": false,
-      "shift": false,
-      "meta": false
-    }
-  }
-]
+  ]
+}

@@ -38,6 +38,14 @@
     return (await chrome.storage.local.get(k))[k] || [];
   }
   const setOrder = (ring, keys) => chrome.storage.local.set({ [ORDER + ring]: keys });
+
+  // Opções padrão que o usuário escondeu num anel (chaves 'b:<site>:<rótulo>').
+  const HIDE = 'hide_';
+  async function getHidden(ring) {
+    const k = HIDE + ring;
+    return (await chrome.storage.local.get(k))[k] || [];
+  }
+  const setHidden = (ring, keys) => chrome.storage.local.set({ [HIDE + ring]: keys });
   function applyOrder(items, order) {
     if (!order || !order.length) return items;
     const pos = new Map(order.map((k, i) => [k, i]));
@@ -63,5 +71,5 @@
     } catch (_) { /* sem sync: nada a migrar */ }
   }
 
-  G.RADIAL_STORE = { list, get, save, remove, migrate, getOrder, setOrder, applyOrder };
+  G.RADIAL_STORE = { list, get, save, remove, migrate, getOrder, setOrder, applyOrder, getHidden, setHidden };
 })();

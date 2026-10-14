@@ -37,19 +37,40 @@ async function injectIntoOpenTabs() {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES }).catch(() => {})));
 }
 
-// Bookmarklets que já vêm com a extensão: defaults/index.json lista { id, name, file, shortcut?, order? } e cada código fica
+// Bookmarklets que já vêm com a extensão: defaults/index.json (bookmarklets, remove, presets); cada código fica
 // em defaults/<file>, guardado exatamente como foi enviado. Cada um é criado uma vez (por id); se o usuário
 // apagar ou editar, não é recriado nem sobrescrito. Entram na lista de bookmarklets salvos, fora do radial.
 async function seedDefaults() {
   try {
-    const index = await (await fetch(chrome.runtime.getURL('defaults/index.json'))).json();
+    const cfg = await (await fetch(chrome.runtime.getURL('defaults/index.json'))).json();
     const { defaults_seeded: seeded = [] } = await chrome.storage.local.get('defaults_seeded');
     const done = new Set(seeded);
-    for (const d of index) {
+    // Bookmarklets padrão que foram retirados da extensão: apagados uma vez.
+    for (const id of cfg.remove || []) {
+      if (done.has('removed:' + id)) continue;
+      await chrome.storage.local.remove('opt_def_' + id);
+      done.add('removed:' + id);
+    }
+    for (const d of cfg.bookmarklets || []) {
       if (done.has(d.id)) continue;
       const code = await (await fetch(chrome.runtime.getURL('defaults/' + d.file))).text();
       await chrome.storage.local.set({ ['opt_def_' + d.id]: { type: 'js', name: d.name, code, ctx: d.ctx || [], ...(d.shortcut ? { shortcut: d.shortcut } : {}), t: d.order || Date.now() } });
       done.add(d.id);
+    }
+    // Predefinições por site (uma vez): quais bookmarklets entram no radial do domínio, a ordem e
+    // quais opções padrão ficam escondidas. Depois disso, o que o usuário mudar é respeitado.
+    for (const p of cfg.presets || []) {
+      const key = 'preset:' + p.id;
+      if (done.has(key)) continue;
+      const ring = 'host:' + p.host;
+      for (const id of p.add || []) {
+        const k = 'opt_def_' + id;
+        const o = (await chrome.storage.local.get(k))[k];
+        if (o && !(o.ctx || []).includes(ring)) await chrome.storage.local.set({ [k]: { ...o, ctx: [...(o.ctx || []), ring] } });
+      }
+      if (p.order) await RADIAL_STORE.setOrder(ring, p.order);
+      if (p.hide) await RADIAL_STORE.setHidden(ring, p.hide);
+      done.add(key);
     }
     await chrome.storage.local.set({ defaults_seeded: [...done] });
   } catch (e) { console.warn('Radial: não foi possível criar os bookmarklets padrão.', e); }

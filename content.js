@@ -457,11 +457,14 @@
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
 
   let orders = {};  // ordem escolhida pelo usuário, por anel (veja store.js)
+  let hides = {};   // opções padrão escondidas pelo usuário, por anel
 
   async function loadOptions() {
     try {
       const all = await chrome.storage.local.get(null);
       orders = {};
+      hides = {};
+      Object.keys(all).filter((k) => k.startsWith('hide_')).forEach((k) => { hides[k.slice(5)] = all[k]; });
       Object.keys(all).filter((k) => k.startsWith('order_')).forEach((k) => { orders[k.slice(6)] = all[k]; });
       return Object.keys(all)
         .filter((k) => k.startsWith('opt_') && Array.isArray(all[k].ctx))
@@ -641,14 +644,16 @@
     const pick = (...ids) => saved.filter((o) => o.ctx.some((c) => ids.includes(c))).map(optionItem);
     const rings = {};
     const names = {};
+    const visibleOf = (key, items) => items.filter((it) => !(hides[key] || []).includes(it.key));
     if (site.id !== 'general') {
-      rings.main = RADIAL_STORE.applyOrder([...siteItems(site), ...pick(site.id, hostRing)], orders[site.id]);
+      rings.main = RADIAL_STORE.applyOrder(visibleOf(site.id, [...siteItems(site), ...pick(site.id, hostRing)]), orders[site.id]);
       names.main = I.label(site.short);
     }
     // Site fora da lista: não há anel de site; as opções do domínio se juntam às do Geral num só anel
     // (as 4 padrão primeiro, depois as suas), dividido em grupos de 5.
     const generalIds = site.id === 'general' ? ['general', hostRing] : ['general'];
-    rings.general = RADIAL_STORE.applyOrder([...siteItems(general), ...pick(...generalIds)], orders[site.id === 'general' ? hostRing : 'general']);
+    const generalKey = site.id === 'general' ? hostRing : 'general';
+    rings.general = RADIAL_STORE.applyOrder(visibleOf(generalKey, [...siteItems(general), ...pick(...generalIds)]), orders[generalKey]);
     names.general = I.label(general.short);
     // Cada anel tem até 10 opções, em grupos (radiais) de 5. O centro passa de um grupo ao próximo.
     const pages = [];

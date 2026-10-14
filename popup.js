@@ -85,15 +85,28 @@ function row(name, badgeText, sub, muted) {
   const merged = !known;
   const mainBuiltins = merged ? general.actions : builtins;
   const mainIds = merged ? [ringId, 'general'] : [ringId];
-  const limitMsg = async () => ((mainBuiltins.length + (await customIn(...mainIds)).length) >= LIMIT
+  const mainOrderKey = known ? site.id : ringId;
+  const limitMsg = async () => (((await visibleBuiltins(mainBuiltins, known ? site.id : 'general', mainOrderKey)).length + (await customIn(...mainIds)).length) >= LIMIT
     ? t('Limit of {max} options in this ring (2 radials of 5). Remove one first.', { max: LIMIT }) : null);
 
   // ----- Listas: um cartão por anel (este site e Geral); grupos de 5 = um radial cada -----
+  // Opções padrão que o usuário não escondeu neste anel.
+  async function visibleBuiltins(list, siteId, orderKey) {
+    const hidden = await S.getHidden(orderKey);
+    return list.filter((a) => !hidden.includes('b:' + siteId + ':' + a.label));
+  }
+
   // Anel com alça de arrastar: a ordem (padrão + suas) é salva por anel e vale também no radial.
   async function renderRing(box, ids, title, builtinList, builtinSite, orderKey) {
     const custom = await customIn(...ids);
+    const hiddenKeys = await S.getHidden(orderKey);
+    const keyOf = (a) => 'b:' + builtinSite + ':' + a.label;
+    const hideBtn = (a) => iconButton(t('Hide {name} from this ring', { name: I.label(a.label) }), 'hide', '', async () => {
+      await S.setHidden(orderKey, [...hiddenKeys, keyOf(a)]);
+      renderList();
+    });
     let entries = [
-      ...builtinList.map((a) => ({ key: 'b:' + builtinSite + ':' + a.label, li: () => row(I.label(a.label), t('Default'), '', true), name: I.label(a.label) })),
+      ...builtinList.filter((a) => !hiddenKeys.includes(keyOf(a))).map((a) => ({ key: keyOf(a), li: () => { const li = row(I.label(a.label), t('Default'), '', true); li.append(hideBtn(a)); return li; }, name: I.label(a.label) })),
       ...custom.map((o) => ({ key: 'o:' + o.id, li: () => customRow(o, ids), name: o.name }))
     ];
     entries = S.applyOrder(entries, await S.getOrder(orderKey));
@@ -162,6 +175,27 @@ function row(name, badgeText, sub, muted) {
     });
     if (!entries.length) ul.appendChild(Object.assign(document.createElement('li'), { className: 'empty-state', textContent: t('No options in this ring yet.') }));
     card.appendChild(ul);
+    // Padrões escondidos: ficam listados (sem contar no limite) para poder restaurar.
+    const hiddenList = builtinList.filter((a) => hiddenKeys.includes(keyOf(a)));
+    if (hiddenList.length) {
+      const h = document.createElement('p');
+      h.className = 'group-head';
+      h.style.marginTop = '12px';
+      h.textContent = t('Hidden default options');
+      card.appendChild(h);
+      const hu = document.createElement('ul');
+      hu.className = 'list';
+      hiddenList.forEach((a) => {
+        const li = row(I.label(a.label), t('Hidden'), '', true);
+        li.style.opacity = '.7';
+        li.append(iconButton(t('Restore {name}', { name: I.label(a.label) }), 'undo', '', async () => {
+          await S.setHidden(orderKey, hiddenKeys.filter((k) => k !== keyOf(a)));
+          renderList();
+        }));
+        hu.appendChild(li);
+      });
+      card.appendChild(hu);
+    }
     box.appendChild(card);
     return entries.length;
   }
