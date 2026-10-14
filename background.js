@@ -37,11 +37,34 @@ async function injectIntoOpenTabs() {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES }).catch(() => {})));
 }
 
+// Bookmarklets que já vêm com a extensão: defaults/index.json lista { id, name, file } e cada código fica
+// em defaults/<file>, guardado exatamente como foi enviado. Cada um é criado uma vez (por id); se o usuário
+// apagar ou editar, não é recriado nem sobrescrito. Entram na lista de bookmarklets salvos, fora do radial.
+async function seedDefaults() {
+  try {
+    const index = await (await fetch(chrome.runtime.getURL('defaults/index.json'))).json();
+    const { defaults_seeded: seeded = [] } = await chrome.storage.local.get('defaults_seeded');
+    const done = new Set(seeded);
+    for (const d of index) {
+      if (done.has(d.id)) continue;
+      const code = await (await fetch(chrome.runtime.getURL('defaults/' + d.file))).text();
+      await chrome.storage.local.set({ ['opt_def_' + d.id]: { type: 'js', name: d.name, code, ctx: d.ctx || [], t: Date.now() } });
+      done.add(d.id);
+    }
+    await chrome.storage.local.set({ defaults_seeded: [...done] });
+  } catch (e) { console.warn('Radial: não foi possível criar os bookmarklets padrão.', e); }
+}
+
+async function onStart() {
+  await RADIAL_STORE.migrate();
+  await seedDefaults();
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  RADIAL_STORE.migrate();
+  onStart();
   injectIntoOpenTabs();
 });
-chrome.runtime.onStartup.addListener(() => RADIAL_STORE.migrate());
+chrome.runtime.onStartup.addListener(onStart);
 
 // Remove "javascript:" do começo e decodifica %XX (formato de favorito colado da barra de endereço).
 // Só decodifica quando não há espaços: código escrito à mão pode conter "%" de verdade.
