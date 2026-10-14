@@ -80,16 +80,20 @@ function row(name, badgeText, sub, muted) {
 
   const PAGE = 5, LIMIT = 10;
   const builtins = known ? site.actions : [];
-  const customIn = async (id) => (await S.list()).filter((o) => (o.ctx || []).includes(id));
-  const limitMsg = async () => ((builtins.length + (await customIn(ringId)).length) >= LIMIT
+  const customIn = async (...ids) => (await S.list()).filter((o) => (o.ctx || []).some((c) => ids.includes(c)));
+  // Site fora da lista: um só anel (Geral + opções do domínio); site conhecido: o anel do site.
+  const merged = !known;
+  const mainBuiltins = merged ? general.actions : builtins;
+  const mainIds = merged ? [ringId, 'general'] : [ringId];
+  const limitMsg = async () => ((mainBuiltins.length + (await customIn(...mainIds)).length) >= LIMIT
     ? t('Limit of {max} options in this ring (2 radials of 5). Remove one first.', { max: LIMIT }) : null);
 
   // ----- Listas: um cartão por anel (este site e Geral); grupos de 5 = um radial cada -----
-  async function renderRing(box, id, title, builtinList) {
-    const custom = await customIn(id);
+  async function renderRing(box, ids, title, builtinList) {
+    const custom = await customIn(...ids);
     const entries = [
       ...builtinList.map((a) => ({ li: () => row(I.label(a.label), t('Default'), '', true) })),
-      ...custom.map((o) => ({ li: () => customRow(o, id) }))
+      ...custom.map((o) => ({ li: () => customRow(o, ids) }))
     ];
     const card = document.createElement('section');
     card.className = 'card';
@@ -116,19 +120,19 @@ function row(name, badgeText, sub, muted) {
   async function renderList() {
     const box = $('rings');
     box.textContent = '';
-    const n = await renderRing(box, ringId, known ? t('{name} ring', { name: I.label(site.short) }) : t('This site ring'), builtins);
-    await renderRing(box, 'general', t('General ring (all sites)'), general.actions);
+    const n = await renderRing(box, mainIds, known ? t('{name} ring', { name: I.label(site.short) }) : t('General ring + this site'), mainBuiltins);
+    if (known) await renderRing(box, ['general'], t('General ring (all sites)'), general.actions);
     $('addBtn').disabled = n >= LIMIT;
   }
 
-  function customRow(o, id) {
+  function customRow(o, ids) {
     const sub = o.type === 'keys' ? (o.keys || []).map(E.comboText).join(' › ')
       : o.type === 'js' ? t('Bookmarklet') + (o.shortcut ? ' · ' + E.comboText(o.shortcut) : '') : t('Ready-made action');
     const shown = o.type === 'action' && o.ref ? I.label(o.ref.label) : o.name;
     const li = row(shown, o.type === 'keys' ? t('Keys') : o.type === 'js' ? 'JS' : t('Action'), sub);
     if (o.type === 'keys') li.append(iconButton(t('Edit {name}', { name: o.name }), 'edit', '', () => { openAdd('keys'); editor.edit(o); }));
     li.append(iconButton(t('Remove {name} from the radial', { name: o.name }), 'trash', 'danger', async () => {
-      const ctx = (o.ctx || []).filter((c) => c !== id);
+      const ctx = (o.ctx || []).filter((c) => !ids.includes(c));
       if (!ctx.length && o.type !== 'js') await S.remove(o.id); // bookmarklets continuam salvos nas configurações
       else await S.save({ ...o, ctx });
       toast(t('Removed from the radial.'));

@@ -640,12 +640,11 @@
     if (site.id !== 'general') {
       rings.main = [...siteItems(site), ...pick(site.id, hostRing)];
       names.main = I.label(site.short);
-    } else if (pick(hostRing).length) {
-      rings.main = pick(hostRing);
-      const h = hostKey();
-      names.main = h.length > 10 ? h.slice(0, 9) + '…' : h;
     }
-    rings.general = [...siteItems(general), ...pick('general')];
+    // Site fora da lista: não há anel de site; as opções do domínio se juntam às do Geral num só anel
+    // (as 4 padrão primeiro, depois as suas), dividido em grupos de 5.
+    const generalIds = site.id === 'general' ? ['general', hostRing] : ['general'];
+    rings.general = [...siteItems(general), ...pick(...generalIds)];
     names.general = I.label(general.short);
     // Cada anel tem até 10 opções, em grupos (radiais) de 5. O centro passa de um grupo ao próximo.
     const pages = [];
