@@ -69,7 +69,7 @@ async function seedDefaults() {
         if (o && !(o.ctx || []).includes(ring)) await chrome.storage.local.set({ [k]: { ...o, ctx: [...(o.ctx || []), ring] } });
       }
       if (p.order) await RADIAL_STORE.setOrder(ring, p.order);
-      if (p.hide) await RADIAL_STORE.setHidden(ring, p.hide);
+      if (p.hide) await RADIAL_STORE.setHidden(ring, [...new Set([...(await RADIAL_STORE.getHidden(ring)), ...p.hide])]);
       done.add(key);
     }
     await chrome.storage.local.set({ defaults_seeded: [...done] });

@@ -126,11 +126,16 @@
   ],
   "presets": [
     {
-      "id": "dynamics",
+      "id": "dynamics-2",
       "host": "isp.crm4.dynamics.com",
       "add": [
         "1",
-        "3"
+        "3",
+        "9"
+      ],
+      "hide": [
+        "b:general:Recarregar",
+        "b:general:Copiar URL"
       ]
     },
     {
