@@ -555,16 +555,37 @@
   }
 
   // Quebra o rótulo em até 2 linhas.
-  function wrapLabel(text) {
-    const t = text.length > 26 ? text.slice(0, 25) + '…' : text;
-    const words = t.split(' ');
-    if (words.length === 1 || t.length <= 9) return [t];
-    let best = 1, diff = Infinity;
-    for (let i = 1; i < words.length; i++) {
-      const d = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
-      if (d < diff) { diff = d; best = i; }
+  // Quebra o rótulo em linhas de até maxChars letras (palavra maior que isso fica inteira).
+  function wrapLabel(text, maxChars) {
+    const t = text.length > 40 ? text.slice(0, 39) + '…' : text;
+    const lines = [];
+    let cur = '';
+    t.split(' ').forEach((w) => {
+      if (cur && (cur + ' ' + w).length > maxChars) { lines.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w;
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // Tamanho do conteúdo (ícone + texto) de uma fatia: usa o fator escolhido (padrão 2×) e só encolhe
+  // se o texto não couber na fatia.
+  function fitContent(label, n) {
+    const scale = Math.min(3, Math.max(1, Number(settings.contentScale) || 2));
+    const mid = (R_IN + R_OUT) / 2 + 4;
+    const chord = n > 1 ? 2 * mid * Math.sin(Math.PI / n) * 0.9 : 2 * R_OUT * 0.8;
+    const availH = (R_OUT - R_IN) - 12;
+    let fs = 11.5 * scale, s = scale;
+    for (let i = 0; i < 24; i++) {
+      const maxChars = Math.max(4, Math.floor(chord / (fs * 0.56)));
+      const lines = wrapLabel(label, maxChars);
+      const iconPx = 24 * 0.75 * s, lineH = fs * 1.15, gap = 4 * s;
+      const w = Math.max(...lines.map((l) => l.length)) * fs * 0.56;
+      const h = iconPx + gap + lines.length * lineH;
+      if ((w <= chord && h <= availH && lines.length <= 3) || fs <= 11.5) return { fs, s, lines, iconPx, lineH, gap, h };
+      fs = Math.max(11.5, fs * 0.93);
+      s = Math.max(1, s * 0.93);
     }
-    return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+    return { fs: 11.5, s: 1, lines: wrapLabel(label, 12), iconPx: 18, lineH: 13, gap: 4, h: 18 + 4 + 13 };
   }
 
   function close() {
@@ -598,12 +619,13 @@
 
       const mid = (R_IN + R_OUT) / 2 + 4;
       const lx = c + mid * Math.cos(theta), ly = c + mid * Math.sin(theta);
-      const lines = wrapLabel(item.label);
+      const fit = fitContent(item.label, n);
+      const top = -fit.h / 2;
       const lg = el('g', { transform: `translate(${lx} ${ly})`, class: 'rdl-label' });
-      lg.appendChild(el('g', { class: 'rdl-icon', transform: 'translate(-9 -26) scale(.75)' }, ICONS[item.icon] || ICONS.code));
-      const text = el('text', { 'text-anchor': 'middle' });
-      lines.forEach((ln, k) => {
-        const ts = el('tspan', { x: 0, y: 6 + k * 13 });
+      lg.appendChild(el('g', { class: 'rdl-icon', transform: `translate(${-fit.iconPx / 2} ${top}) scale(${0.75 * fit.s})`, style: `stroke-width:${(2 / (0.75 * fit.s)).toFixed(2)}px` }, ICONS[item.icon] || ICONS.code));
+      const text = el('text', { 'text-anchor': 'middle', style: `font-size:${fit.fs}px` });
+      fit.lines.forEach((ln, k) => {
+        const ts = el('tspan', { x: 0, y: top + fit.iconPx + fit.gap + fit.fs * 0.85 + k * fit.lineH });
         ts.textContent = ln;
         text.appendChild(ts);
       });
@@ -732,7 +754,7 @@
   // ---------- Gatilhos configuráveis (página de opções) ----------
   // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null,
   //              size: px, sticky: bool (soltar ativa a última fatia), cancel: 'none'|'right'|'middle'|'back'|'forward' }
-  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left' };
+  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 2 };
   let settings = { ...DEFAULTS };
   const applySettings = (s) => { settings = { ...DEFAULTS, ...(s || {}) }; };
   try {
