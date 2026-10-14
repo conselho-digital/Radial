@@ -156,7 +156,7 @@
       ]
     },
     {
-      "id": "sicharge",
+      "id": "sicharge-2",
       "host": "configuration.sicharge.technology",
       "add": [
         "2",
@@ -173,7 +173,20 @@
         "o:def_4",
         "o:def_5",
         "o:def_6",
-        "o:def_8"
+        "o:def_8",
+        "b:general:Copiar URL",
+        "b:general:Topo",
+        "o:def_sic-bottom",
+        "b:general:Modo escuro"
+      ],
+      "actions": [
+        {
+          "id": "sic-bottom",
+          "ref": {
+            "site": "general",
+            "label": "Fim"
+          }
+        }
       ]
     }
   ]
