@@ -104,6 +104,21 @@
         "shift": false,
         "meta": false
       }
+    },
+    {
+      "id": "9",
+      "name": "🔎",
+      "file": "9.txt",
+      "order": 9,
+      "shortcut": {
+        "key": "9",
+        "code": "Digit9",
+        "keyCode": 57,
+        "alt": true,
+        "ctrl": false,
+        "shift": false,
+        "meta": false
+      }
     }
   ],
   "remove": [
