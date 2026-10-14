@@ -51,8 +51,18 @@ async function seedDefaults() {
       await chrome.storage.local.remove('opt_def_' + id);
       done.add('removed:' + id);
     }
+    const { defaults_rev: revs = {} } = await chrome.storage.local.get('defaults_rev');
     for (const d of cfg.bookmarklets || []) {
+      // Nova revisão do código de um padrão já criado: troca o código (mantém anéis e atalho do usuário).
+      if (done.has(d.id) && d.rev && (revs[d.id] || 1) < d.rev) {
+        const k = 'opt_def_' + d.id;
+        const cur = (await chrome.storage.local.get(k))[k];
+        if (cur) await chrome.storage.local.set({ [k]: { ...cur, code: await (await fetch(chrome.runtime.getURL('defaults/' + d.file))).text() } });
+        revs[d.id] = d.rev;
+        continue;
+      }
       if (done.has(d.id)) continue;
+      if (d.rev) revs[d.id] = d.rev;
       const code = await (await fetch(chrome.runtime.getURL('defaults/' + d.file))).text();
       await chrome.storage.local.set({ ['opt_def_' + d.id]: { type: 'js', name: d.name, code, ctx: d.ctx || [], ...(d.shortcut ? { shortcut: d.shortcut } : {}), t: d.order || Date.now() } });
       done.add(d.id);
@@ -77,7 +87,7 @@ async function seedDefaults() {
       if (p.hide) await RADIAL_STORE.setHidden(ring, [...new Set([...(await RADIAL_STORE.getHidden(ring)), ...p.hide])]);
       done.add(key);
     }
-    await chrome.storage.local.set({ defaults_seeded: [...done] });
+    await chrome.storage.local.set({ defaults_seeded: [...done], defaults_rev: revs });
   } catch (e) { console.warn('Radial: não foi possível criar os bookmarklets padrão.', e); }
 }
 
@@ -186,6 +196,33 @@ async function runWithDebugger(tabId, code, blockedResult) {
   }
 }
 
+// Bookmarklets com dados no código: entre /*RADIAL-DATA-START*/ e /*RADIAL-DATA-END*/ fica uma lista JSON
+// (ex.: palavras e cores do 🖌️). O pedido vem da página (pode ser forjado), então a lista é revalidada e
+// regravada com JSON.stringify: só texto simples e cores, nunca código.
+const DATA_BLOCK = /\/\*RADIAL-DATA-START\*\/[\s\S]*?\/\*RADIAL-DATA-END\*\//;
+const COLOR_RE = /^(#[0-9a-f]{3,8}|(?:hsl|rgb)a?\([\d\s.,%\/]+\))$/i;
+function cleanWords(data) {
+  if (!Array.isArray(data) || data.length > 100) return null;
+  const out = [];
+  for (const w of data) {
+    if (!w || typeof w.termtxt !== 'string' || w.termtxt.length > 200 || /\/\*|\*\//.test(w.termtxt)) return null;
+    if (typeof w.colortxt !== 'string' || !COLOR_RE.test(w.colortxt)) return null;
+    out.push({ termtxt: w.termtxt, colortxt: w.colortxt, enabledtxt: w.enabledtxt !== false, hiddentxt: w.hiddentxt === true });
+  }
+  return out;
+}
+async function saveBookmarkletData(detail) {
+  const m = JSON.parse(detail);
+  if (!m || typeof m.id !== 'string' || !/^[\w-]+$/.test(m.id)) return;
+  const data = cleanWords(m.data);
+  if (!data) return;
+  const k = 'opt_' + m.id;
+  const o = (await chrome.storage.local.get(k))[k];
+  if (!o || o.type !== 'js' || !DATA_BLOCK.test(o.code)) return;
+  const next = o.code.replace(DATA_BLOCK, () => '/*RADIAL-DATA-START*/' + JSON.stringify(data) + '/*RADIAL-DATA-END*/');
+  if (next !== o.code) await chrome.storage.local.set({ [k]: { ...o, code: next } });
+}
+
 // O popup mantém uma conexão aberta enquanto existe; quando ela cai (popup fechado), o radial de
 // pré-visualização some da página.
 chrome.runtime.onConnect.addListener((port) => {
@@ -209,6 +246,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // O popup fechou: tira o radial de pré-visualização da página.
   if (msg.type === 'close-radial-tab' && fromPopup && Number.isInteger(msg.tabId)) {
     chrome.tabs.sendMessage(msg.tabId, { type: 'close-radial', preview: true }).catch(() => {});
+    return;
+  }
+
+  if (msg.type === 'bookmarklet-data' && sender.tab && sender.frameId === 0 && typeof msg.detail === 'string' && msg.detail.length < 200000) {
+    saveBookmarkletData(msg.detail).catch(() => {});
     return;
   }
 

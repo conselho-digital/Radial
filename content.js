@@ -855,6 +855,14 @@
     open();
   }, true);
 
+  // Bookmarklets que guardam dados no próprio código (ex.: 🖌️ palavras e cores): o bookmarklet avisa por
+  // evento e o background regrava o bloco de dados do código salvo (veja saveBookmarkletData).
+  window.addEventListener('radial-bookmarklet-data', (e) => {
+    const detail = typeof e.detail === 'string' ? e.detail : '';
+    if (!detail || detail.length > 200000) return;
+    try { chrome.runtime.sendMessage({ type: 'bookmarklet-data', detail }).catch(() => {}); } catch (_) { /* contexto invalidado */ }
+  });
+
   chrome.runtime.onMessage.addListener((msg, sender) => {
     if (sender.id !== chrome.runtime.id) return;
     if (!msg) return;

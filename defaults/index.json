@@ -103,7 +103,8 @@
         "ctrl": false,
         "shift": false,
         "meta": false
-      }
+      },
+      "rev": 2
     },
     {
       "id": "9",
