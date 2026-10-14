@@ -309,6 +309,25 @@ function row(name, badgeText, sub, muted) {
   $('kind').onchange = showKind;
   $('addBtn').onclick = () => (($('addCard').classList.contains('hidden')) ? openAdd() : $('addCard').classList.add('hidden'));
 
+  // ----- Tamanhos (no fim do popup): mexer aqui refaz o radial de pré-visualização na hora -----
+  const sizeDefaults = { size: 380, contentScale: 1.5 };
+  const cur = { ...sizeDefaults, ...((await chrome.storage.sync.get('settings')).settings || {}) };
+  $('pSize').value = cur.size;
+  $('pSizeOut').textContent = cur.size + ' px';
+  $('pContent').value = Math.round(cur.contentScale * 100);
+  $('pContentOut').textContent = Math.round(cur.contentScale * 100) + '%';
+  let sizeTimer = null;
+  const saveSizes = () => {
+    clearTimeout(sizeTimer);
+    sizeTimer = setTimeout(async () => {
+      const latest = (await chrome.storage.sync.get('settings')).settings || {};
+      await chrome.storage.sync.set({ settings: { ...latest, size: Number($('pSize').value) || 380, contentScale: (Number($('pContent').value) || 150) / 100 } });
+      setTimeout(showRadial, 120); // dá tempo da página receber as configurações novas
+    }, 120);
+  };
+  $('pSize').oninput = () => { $('pSizeOut').textContent = $('pSize').value + ' px'; saveSizes(); };
+  $('pContent').oninput = () => { $('pContentOut').textContent = $('pContent').value + '%'; saveSizes(); };
+
   I.apply($('addCard'));
   fillActions();
   fillBookmarklets();
