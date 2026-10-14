@@ -205,12 +205,15 @@ function row(name, badgeText, sub, muted) {
     return entries.length;
   }
 
+  const showRadial = () => chrome.runtime.sendMessage({ type: 'open-radial-tab', tabId: tab.id, preview: true }).catch(() => {});
+
   async function renderList() {
     const box = $('rings');
     box.textContent = '';
     const n = await renderRing(box, mainIds, known ? t('{name} ring', { name: I.label(site.short) }) : t('General ring + this site'),
       mainBuiltins, known ? site.id : 'general', known ? site.id : ringId, known ? generalDefaults : []);
     $('addBtn').disabled = (await limitMsg()) !== null && n >= LIMIT;
+    showRadial();
   }
 
   function customRow(o, ids) {
@@ -311,8 +314,8 @@ function row(name, badgeText, sub, muted) {
   fillBookmarklets();
   renderList();
 
-  $('openNow').onclick = async () => {
-    await chrome.runtime.sendMessage({ type: 'open-radial-tab', tabId: tab.id });
-    window.close();
-  };
+  // Mostra o radial no meio da página enquanto o popup está aberto; ele é refeito a cada mudança aqui
+  // e some quando o popup fecha.
+  const previewPort = chrome.runtime.connect({ name: 'popup-preview' });
+  previewPort.postMessage({ tabId: tab.id });
 })();

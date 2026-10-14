@@ -7,17 +7,17 @@ const CONTENT_FILES = ['sites.js', 'store.js', 'i18n-labels.js', 'i18n-ui.js', '
 
 // Abre o menu na aba ativa. Se o content script ainda não existe na aba
 // (aba aberta antes da instalação), injeta e tenta de novo.
-async function openRadial(tab) {
+async function openRadial(tab, extra = {}) {
   if (!tab || tab.id == null) {
     [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   }
   if (!tab || tab.id == null) return;
   try {
-    await chrome.tabs.sendMessage(tab.id, OPEN_MSG);
+    await chrome.tabs.sendMessage(tab.id, { ...OPEN_MSG, ...extra });
   } catch (_) {
     try {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES });
-      await chrome.tabs.sendMessage(tab.id, OPEN_MSG);
+      await chrome.tabs.sendMessage(tab.id, { ...OPEN_MSG, ...extra });
     } catch (e) {
       // Páginas internas (chrome://, Web Store) não aceitam injeção.
       console.warn('Radial: não foi possível abrir nesta página.', e);
@@ -186,13 +186,30 @@ async function runWithDebugger(tabId, code, blockedResult) {
   }
 }
 
+// O popup mantém uma conexão aberta enquanto existe; quando ela cai (popup fechado), o radial de
+// pré-visualização some da página.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'popup-preview' || port.sender.id !== chrome.runtime.id) return;
+  let tabId = null;
+  port.onMessage.addListener((m) => { if (m && Number.isInteger(m.tabId)) tabId = m.tabId; });
+  port.onDisconnect.addListener(() => {
+    if (tabId != null) chrome.tabs.sendMessage(tabId, { type: 'close-radial', preview: true }).catch(() => {});
+  });
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !msg) return;
 
   // Vindo do popup da extensão (sem aba): abre o radial na aba pedida.
-  if (msg.type === 'open-radial-tab' && !sender.tab && Number.isInteger(msg.tabId)) {
-    openRadial({ id: msg.tabId }).then(() => sendResponse({ ok: true }));
+  const fromPopup = !!sender.url && sender.url.startsWith(chrome.runtime.getURL('popup.html'));
+  if (msg.type === 'open-radial-tab' && fromPopup && Number.isInteger(msg.tabId)) {
+    openRadial({ id: msg.tabId }, { preview: !!msg.preview }).then(() => sendResponse({ ok: true }));
     return true;
+  }
+  // O popup fechou: tira o radial de pré-visualização da página.
+  if (msg.type === 'close-radial-tab' && fromPopup && Number.isInteger(msg.tabId)) {
+    chrome.tabs.sendMessage(msg.tabId, { type: 'close-radial', preview: true }).catch(() => {});
+    return;
   }
 
   // Vindo do content script (só o frame principal de uma aba): executa uma opção JavaScript.

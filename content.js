@@ -534,6 +534,7 @@
   let opening = false;  // trava síncrona: evita abrir dois menus ao mesmo tempo
   const segRun = new WeakMap(); // fatia -> ação (assim o clique não depende de eventos falsificáveis)
   let openedBtn = null;     // botão do mouse que abriu o menu e ainda está pressionado: soltar escolhe a fatia
+  let previewOpen = false;  // aberto pelo popup da extensão (pré-visualização)
   let openedAt = { x: null, y: null }; // onde o menu abriu
   let centerSwap = null;    // passa para o próximo grupo (soltar o botão sobre o centro faz o mesmo)
   let armed = null;         // última fatia sob o mouse (só com "manter última opção" ligado)
@@ -572,6 +573,7 @@
     root = null;
     rootHost = null;
     openedBtn = null;
+    previewOpen = false;
     armed = null;
     document.removeEventListener('keydown', onKey, true);
     r.classList.add('rdl-closing');
@@ -703,6 +705,7 @@
     const menu = document.createElement('div');
     menu.className = 'rdl-menu';
     openedAt = { x, y };
+    previewOpen = !!opts.preview;
     menu.style.left = '0px';
     menu.style.top = '0px';
     box.appendChild(menu);
@@ -854,6 +857,12 @@
 
   chrome.runtime.onMessage.addListener((msg, sender) => {
     if (sender.id !== chrome.runtime.id) return;
-    if (msg && msg.type === 'open-radial') open();
+    if (!msg) return;
+    // Pré-visualização pedida pelo popup: abre (ou refaz) o radial no meio da tela.
+    if (msg.type === 'open-radial' && msg.preview) {
+      if (root) close();
+      open({ x: innerWidth / 2, y: innerHeight / 2, preview: true });
+    } else if (msg.type === 'open-radial') open();
+    else if (msg.type === 'close-radial' && root && previewOpen) close();
   });
 })();
