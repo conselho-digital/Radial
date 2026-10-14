@@ -48,7 +48,6 @@ function initTheme() {
 
 // ---------- Opções do radial ----------
 const E = window.RADIAL_EDITOR;
-let editor = null;
 let bmEditor = null;
 
 function iconButton(label, name, cls, onclick) {
@@ -97,14 +96,14 @@ async function render() {
     tags.className = 'tags';
     (o.ctx || []).forEach((c) => tags.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: ringName(c) })));
     info.append(head, sub, tags);
-    const edit = iconButton(t('Edit {name}', { name: o.name }), 'edit', '', () => (o.type === 'js' ? bmEditor : editor).edit(o));
     const del = iconButton(t('Delete {name}', { name: o.name }), 'trash', 'danger', async () => {
       if (!confirm(t('Delete "{name}"?', { name: o.name || '—' }))) return;
       await window.RADIAL_STORE.remove(o.id);
       toast(t('Option deleted.'));
       render();
     });
-    li.append(info, edit, del);
+    if (o.type === 'js') li.append(info, iconButton(t('Edit {name}', { name: o.name }), 'edit', '', () => bmEditor.edit(o)), del);
+    else li.append(info, del); // atalhos e ações prontas são editados pelo ícone da extensão, no próprio site
     ul.appendChild(li);
   });
 }
@@ -200,10 +199,6 @@ window.addEventListener('keydown', (e) => {
   sel.onchange = async () => { await I.setLang(sel.value); location.reload(); };
   initTheme();
   await window.RADIAL_STORE.migrate();
-  editor = E.mount($('editor'), {
-    siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: I.label(s.name) })),
-    toast, onChange: render, noJs: true
-  });
   bmEditor = E.mount($('bmEditor'), { bookmarklet: true, siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: I.label(s.name) })), toast, onChange: render });
   const r = await chrome.storage.sync.get('settings');
   cfg = { ...DEFAULTS, ...(r.settings || {}) };

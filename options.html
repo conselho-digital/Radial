@@ -41,7 +41,8 @@
     </div>
   </header>
 
-  <main>
+  <main class="cols">
+    <div class="col">
     <!-- ===== Gatilho ===== -->
     <section class="card" aria-labelledby="h-trigger">
       <div class="card-head">
@@ -70,6 +71,7 @@
         </div>
       </fieldset>
 
+      <div class="fields">
       <div class="field" id="holdBox">
         <label class="lbl" for="holdMs">Hold time<output id="holdOut" for="holdMs">150 ms</output></label>
         <input type="range" id="holdMs" min="150" max="1000" step="50" value="150">
@@ -125,8 +127,11 @@
         <p class="help">Works together with the triggers above. It is the only way to change this shortcut.</p>
         <p class="help">On Mac, holding the right button disables the native right-click menu while it is on.</p>
       </div>
+      </div>
     </section>
 
+    </div>
+    <div class="col">
     <!-- ===== Bookmarklets ===== -->
     <section class="card" aria-labelledby="h-bm">
       <div class="card-head">
@@ -136,21 +141,13 @@
       <div id="bmEditor"></div>
     </section>
 
-    <!-- ===== Opções do radial ===== -->
-    <section class="card" aria-labelledby="h-add">
-      <div class="card-head">
-        <h2 id="h-add">Add option to the radial</h2>
-        <p class="lead">Record a keyboard shortcut that the radial presses for you. You can also create options from the extension icon, right on the site.</p>
-      </div>
-      <div id="editor"></div>
-    </section>
-
     <section class="card" aria-labelledby="h-saved">
       <div class="card-head">
         <h2 id="h-saved">Saved options</h2>
       </div>
       <ul class="list" id="list"></ul>
     </section>
+    </div>
   </main>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
