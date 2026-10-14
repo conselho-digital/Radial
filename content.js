@@ -693,7 +693,7 @@
     // Não rouba o foco do editor e fecha ao clicar fora.
     root.addEventListener('mousedown', (e) => e.preventDefault());
     root.addEventListener('mouseup', (e) => { if (e.button === 0 && e.target === root) close(); });
-    root.addEventListener('contextmenu', (e) => { e.preventDefault(); close(); });
+    root.addEventListener('contextmenu', (e) => e.preventDefault()); // o botão direito não cancela: só o botão de cancelar escolhido
     document.addEventListener('keydown', onKey, true);
     document.documentElement.appendChild(host);
   }
@@ -731,6 +731,16 @@
       return;
     }
     const m = settings.mouse;
+    // Menu já aberto: apertar de novo o botão do gatilho é "escolher". Soltar sobre uma fatia a ativa
+    // (ou a última, com "manter última opção"); sobre o centro passa ao próximo grupo.
+    const trig = m === 'right-hold' ? 2 : BTN[m];
+    if (root && trig === e.button) {
+      e.preventDefault(); e.stopPropagation();
+      btnDown = e.button;
+      openedBtn = e.button;
+      if (e.button === 2) { pressed = true; suppressCtx = true; }
+      return;
+    }
     if (m === 'right-hold') {
       if (e.button !== 2 || root || isEditable(e.target)) return;
       pressed = true;
