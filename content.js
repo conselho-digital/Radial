@@ -293,11 +293,17 @@
     return [];
   }
 
-  // Menus do Docs/Sheets/Slides (.goog-menuitem), com limite de palavra.
+  // Menus do Docs/Sheets/Slides (.goog-menuitem), com limite de palavra. O texto do item pode vir colado a
+  // setas de submenu ("Columns▸") ou a atalhos ("Sheet⇧F11"), então o limite é "letra/dígito", não espaço.
   function findMenuItem(labels) {
-    const res = labels.map((l) => new RegExp('(^|\\s)' + l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|\\s)', 'i'));
+    const res = labels.map((l) => new RegExp('(?:^|[^\\p{L}\\p{N}])' + escRe(l) + '(?![\\p{L}\\p{N}])', 'iu'));
+    const ownText = (n) => [...n.childNodes].filter((c) => c.nodeType === 3).map((c) => c.nodeValue).join(' ').trim();
+    // Cada pedaço de texto do item é testado em separado: ícones por ligadura ("arrow_right") ficam em
+    // outros elementos e não atrapalham; o texto inteiro do item é o plano B.
+    const hit = (el) => [el, ...el.querySelectorAll('*')].some((n) => { const t = ownText(n); return t && res.some((re) => re.test(t)); }) ||
+      res.some((re) => re.test((el.textContent || '').trim()));
     const items = document.querySelectorAll('.goog-menuitem:not(.goog-menuitem-disabled), [role="menuitem"]');
-    return [...items].find((el) => visible(el) && res.some((re) => re.test((el.textContent || '').trim())));
+    return [...items].find((el) => visible(el) && hit(el));
   }
 
   async function chooseMenu(menuId, targets, submenus = []) {
@@ -645,16 +651,13 @@
     const rings = {};
     const names = {};
     const visibleOf = (key, items) => items.filter((it) => !(hides[key] || []).includes(it.key));
-    if (site.id !== 'general') {
-      rings.main = RADIAL_STORE.applyOrder(visibleOf(site.id, [...siteItems(site), ...pick(site.id, hostRing)]), orders[site.id]);
-      names.main = I.label(site.short);
-    }
-    // Site fora da lista: não há anel de site; as opções do domínio se juntam às do Geral num só anel
-    // (as 4 padrão primeiro, depois as suas), dividido em grupos de 5.
-    const generalIds = site.id === 'general' ? ['general', hostRing] : ['general'];
-    const generalKey = site.id === 'general' ? hostRing : 'general';
-    rings.general = RADIAL_STORE.applyOrder(visibleOf(generalKey, [...siteItems(general), ...pick(...generalIds)]), orders[generalKey]);
-    names.general = I.label(general.short);
+    // Um só anel, em grupos de 5 (máximo 10): padrões do site, suas opções e, por último, os padrões do
+    // Geral. Site fora da lista: os padrões do Geral fazem o papel de padrões do site.
+    const ringKey = site.id === 'general' ? hostRing : site.id;
+    const own = site.id === 'general' ? siteItems(general) : siteItems(site);
+    const tail = site.id === 'general' ? [] : siteItems(general);
+    rings.main = RADIAL_STORE.applyOrder(visibleOf(ringKey, [...own, ...pick(ringKey, hostRing, 'general'), ...tail]), orders[ringKey]);
+    names.main = site.id === 'general' ? I.label(general.short) : I.label(site.short);
     // Cada anel tem até 10 opções, em grupos (radiais) de 5. O centro passa de um grupo ao próximo.
     const pages = [];
     Object.keys(rings).forEach((k) => {

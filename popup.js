@@ -84,7 +84,7 @@ function row(name, badgeText, sub, muted) {
   // Site fora da lista: um só anel (Geral + opções do domínio); site conhecido: o anel do site.
   const merged = !known;
   const mainBuiltins = merged ? general.actions : builtins;
-  const mainIds = merged ? [ringId, 'general'] : [ringId];
+  const mainIds = [ringId, 'general'];
   const mainOrderKey = known ? site.id : ringId;
   const limitMsg = async () => (((await visibleBuiltins(mainBuiltins, known ? site.id : 'general', mainOrderKey)).length + (await customIn(...mainIds)).length) >= LIMIT
     ? t('Limit of {max} options in this ring (2 radials of 5). Remove one first.', { max: LIMIT }) : null);
@@ -97,17 +97,21 @@ function row(name, badgeText, sub, muted) {
   }
 
   // Anel com alça de arrastar: a ordem (padrão + suas) é salva por anel e vale também no radial.
-  async function renderRing(box, ids, title, builtinList, builtinSite, orderKey) {
+  // Um só anel: padrões do site, suas opções e, por último, os padrões do Geral (se o site é conhecido).
+  async function renderRing(box, ids, title, builtinList, builtinSite, orderKey, tailBuiltins = []) {
     const custom = await customIn(...ids);
     const hiddenKeys = await S.getHidden(orderKey);
-    const keyOf = (a) => 'b:' + builtinSite + ':' + a.label;
-    const hideBtn = (a) => iconButton(t('Hide {name} from this ring', { name: I.label(a.label) }), 'hide', '', async () => {
-      await S.setHidden(orderKey, [...hiddenKeys, keyOf(a)]);
+    const mk = (list, sid) => list.map((a) => ({ a, key: 'b:' + sid + ':' + a.label }));
+    const head = mk(builtinList, builtinSite), tail = mk(tailBuiltins, 'general');
+    const hideBtn = (b) => iconButton(t('Hide {name} from this ring', { name: I.label(b.a.label) }), 'hide', '', async () => {
+      await S.setHidden(orderKey, [...hiddenKeys, b.key]);
       renderList();
     });
+    const builtinEntry = (b) => ({ key: b.key, li: () => { const li = row(I.label(b.a.label), t('Default'), '', true); li.append(hideBtn(b)); return li; }, name: I.label(b.a.label) });
     let entries = [
-      ...builtinList.filter((a) => !hiddenKeys.includes(keyOf(a))).map((a) => ({ key: keyOf(a), li: () => { const li = row(I.label(a.label), t('Default'), '', true); li.append(hideBtn(a)); return li; }, name: I.label(a.label) })),
-      ...custom.map((o) => ({ key: 'o:' + o.id, li: () => customRow(o, ids), name: o.name }))
+      ...head.filter((b) => !hiddenKeys.includes(b.key)).map(builtinEntry),
+      ...custom.map((o) => ({ key: 'o:' + o.id, li: () => customRow(o, ids), name: o.name })),
+      ...tail.filter((b) => !hiddenKeys.includes(b.key)).map(builtinEntry)
     ];
     entries = S.applyOrder(entries, await S.getOrder(orderKey));
     const card = document.createElement('section');
@@ -176,7 +180,7 @@ function row(name, badgeText, sub, muted) {
     if (!entries.length) ul.appendChild(Object.assign(document.createElement('li'), { className: 'empty-state', textContent: t('No options in this ring yet.') }));
     card.appendChild(ul);
     // Padrões escondidos: ficam listados (sem contar no limite) para poder restaurar.
-    const hiddenList = builtinList.filter((a) => hiddenKeys.includes(keyOf(a)));
+    const hiddenList = [...head, ...tail].filter((b) => hiddenKeys.includes(b.key));
     if (hiddenList.length) {
       const h = document.createElement('p');
       h.className = 'group-head';
@@ -185,11 +189,11 @@ function row(name, badgeText, sub, muted) {
       card.appendChild(h);
       const hu = document.createElement('ul');
       hu.className = 'list';
-      hiddenList.forEach((a) => {
-        const li = row(I.label(a.label), t('Hidden'), '', true);
+      hiddenList.forEach((b) => {
+        const li = row(I.label(b.a.label), t('Hidden'), '', true);
         li.style.opacity = '.7';
-        li.append(iconButton(t('Restore {name}', { name: I.label(a.label) }), 'undo', '', async () => {
-          await S.setHidden(orderKey, hiddenKeys.filter((k) => k !== keyOf(a)));
+        li.append(iconButton(t('Restore {name}', { name: I.label(b.a.label) }), 'undo', '', async () => {
+          await S.setHidden(orderKey, hiddenKeys.filter((k) => k !== b.key));
           renderList();
         }));
         hu.appendChild(li);
@@ -204,9 +208,8 @@ function row(name, badgeText, sub, muted) {
     const box = $('rings');
     box.textContent = '';
     const n = await renderRing(box, mainIds, known ? t('{name} ring', { name: I.label(site.short) }) : t('General ring + this site'),
-      mainBuiltins, known ? site.id : 'general', known ? site.id : ringId);
-    if (known) await renderRing(box, ['general'], t('General ring (all sites)'), general.actions, 'general', 'general');
-    $('addBtn').disabled = n >= LIMIT;
+      mainBuiltins, known ? site.id : 'general', known ? site.id : ringId, known ? general.actions : []);
+    $('addBtn').disabled = (await limitMsg()) !== null && n >= LIMIT;
   }
 
   function customRow(o, ids) {
