@@ -109,7 +109,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5 };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: true, autoDndHosts: 'isp.crm4.dynamics.com' };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -138,6 +138,8 @@ function showCfg() {
   $('contentScale').value = Math.round((cfg.contentScale || 1.5) * 100);
   $('contentOut').textContent = Math.round((cfg.contentScale || 1.5) * 100) + '%';
   $('sticky').checked = !!cfg.sticky;
+  $('autoDnd').checked = cfg.autoDnd !== false;
+  if (document.activeElement !== $('autoDndHosts')) $('autoDndHosts').value = String(cfg.autoDndHosts || '').split(/[\s,;]+/).filter(Boolean).join('\n');
   const trig = { middle: 'middle', back: 'back', forward: 'forward', 'right-hold': 'right' }[cfg.mouse];
   if (trig && cfg.cancel === trig) cfg.cancel = 'none';
   document.querySelectorAll('input[name="cancelBtn"]').forEach((r) => {
@@ -168,6 +170,8 @@ $('size').oninput = () => { $('sizeOut').textContent = $('size').value + ' px'; 
 $('size').onchange = () => { cfg.size = Number($('size').value) || 380; showCfg(); saveCfg(); };
 $('contentScale').oninput = () => { $('contentOut').textContent = $('contentScale').value + '%'; };
 $('contentScale').onchange = () => { cfg.contentScale = (Number($('contentScale').value) || 150) / 100; showCfg(); saveCfg(); };
+$('autoDnd').onchange = () => { cfg.autoDnd = $('autoDnd').checked; saveCfg(); };
+$('autoDndHosts').onchange = () => { cfg.autoDndHosts = $('autoDndHosts').value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean).join(' '); showCfg(); saveCfg(); };
 $('sticky').onchange = () => { cfg.sticky = $('sticky').checked; saveCfg(); };
 document.querySelectorAll('input[name="cancelBtn"]').forEach((r) => {
   r.onchange = () => { if (r.checked) { cfg.cancel = r.value; showCfg(); saveCfg(); } };

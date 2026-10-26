@@ -751,12 +751,110 @@
     document.documentElement.appendChild(host);
   }
 
+
+  // ---------- Status automático (Dynamics): Disponível por fora, Não perturbe por dentro ----------
+  // Nos sites configurados, o botão de presença nunca fica realmente em "Available": a extensão muda o
+  // status de verdade para "Do not disturb" (sem ligações) e mantém a aparência de "Available" na tela.
+  // Escolher "Available" no menu faz o mesmo; escolher qualquer outro status desliga o disfarce.
+  const AVAIL_RE = /^(available|dispon[ií]vel|disponible|disponibile|verf[uü]gbar|متاح|উপলব্ধ)$/i;
+  const DND_RE = /^(do not disturb|n[aã]o perturbe|n[aã]o incomodar|ne pas d[ée]ranger|non disturbare|nicht st[oö]ren|no molestar|عدم الإزعاج|বিরক্ত করবেন না)$/i;
+  const DND_FLAG = 'radial_fake_available';
+  const FAKE_CHECK = '<circle cx="8" cy="8" r="8" fill="#13A10E"></circle><path d="M10.666 5.13379C10.8027 5.13379 10.9297 5.15983 11.0469 5.21191C11.1673 5.26074 11.2715 5.3291 11.3594 5.41699C11.4473 5.50488 11.5156 5.60905 11.5645 5.72949C11.6165 5.84668 11.6426 5.97363 11.6426 6.11035C11.6426 6.24056 11.6182 6.36589 11.5693 6.48633C11.5205 6.60677 11.4505 6.71257 11.3594 6.80371L7.48242 10.6855C7.39128 10.7767 7.28548 10.8483 7.16504 10.9004C7.0446 10.9492 6.91927 10.9736 6.78906 10.9736C6.65885 10.9736 6.53353 10.9492 6.41309 10.9004C6.29264 10.8483 6.18685 10.7767 6.0957 10.6855L4.32812 8.91797C4.23698 8.82682 4.16536 8.72103 4.11328 8.60059C4.06445 8.48014 4.04004 8.35482 4.04004 8.22461C4.04004 8.08789 4.06608 7.96094 4.11816 7.84375C4.17025 7.72331 4.24023 7.61914 4.32812 7.53125C4.41602 7.44336 4.51855 7.375 4.63574 7.32617C4.75618 7.27409 4.88477 7.24805 5.02148 7.24805C5.15169 7.24805 5.27702 7.27246 5.39746 7.32129C5.5179 7.37012 5.6237 7.4401 5.71484 7.53125L6.78906 8.60547L9.97266 5.41699C10.0638 5.32585 10.1696 5.25586 10.29 5.20703C10.4105 5.1582 10.5358 5.13379 10.666 5.13379Z" fill="white"></path>';
+  let dndTimer = null, dndBusy = false, dndLastFail = 0, dndAvailLabel = 'Available';
+  let fakeActive = false;
+  try { fakeActive = localStorage.getItem(DND_FLAG) === '1'; } catch (_) { /* sem localStorage */ }
+  const setFake = (v) => { fakeActive = v; try { v ? localStorage.setItem(DND_FLAG, '1') : localStorage.removeItem(DND_FLAG); } catch (_) { /* ignora */ } };
+
+  const autoDndHostMatch = () => {
+    const h = hostKey();
+    return String(settings.autoDndHosts || '').split(/[\s,;]+/).map((x) => x.trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split('/')[0].replace(/^www\./, '')).filter(Boolean)
+      .some((d) => h === d || h.endsWith('.' + d));
+  };
+  const presenceBtn = () => document.querySelector('button[data-id*="PresenceControlButton"]');
+  const btnLabel = (b) => (b.getAttribute('title') || b.getAttribute('aria-label') || '').trim();
+  const itemLabel = (el) => (el.getAttribute('aria-label') || el.textContent || '').trim();
+  const findDndItem = () => {
+    const items = [...document.querySelectorAll('button[data-id^="presencestatus-"], [role="menuitem"], [role="option"]')];
+    return items.find((el) => DND_RE.test(itemLabel(el))) || items.find((el) => /donotdisturb|do-not-disturb|dnd/i.test(el.getAttribute('data-id') || ''));
+  };
+  const isAvailItem = (el) => /available/i.test(el.getAttribute('data-id') || '') || AVAIL_RE.test(itemLabel(el));
+
+  async function switchToDnd() {
+    if (dndBusy) return;
+    dndBusy = true;
+    try {
+      const b = presenceBtn();
+      if (!b) return;
+      let item = findDndItem();
+      let opened = false;
+      if (!item) {
+        b.click(); opened = true;
+        for (let i = 0; i < 25 && !item; i++) { await sleep(100); item = findDndItem(); }
+      }
+      if (item) { item.click(); setFake(true); await sleep(250); }
+      else { dndLastFail = Date.now(); if (opened) b.click(); } // não achou o item: fecha o menu e tenta de novo mais tarde
+    } finally { dndBusy = false; }
+  }
+
+  function applyFakeLook(b) {
+    const svg = b.querySelector('svg');
+    if (!svg) return;
+    const src = svg.getAttribute('source') || '';
+    if (b.dataset.radialFake === '1' && btnLabel(b) === dndAvailLabel && /Available/.test(src)) return; // já disfarçado
+    try {
+      b.setAttribute('title', dndAvailLabel); b.setAttribute('aria-label', dndAvailLabel);
+      svg.setAttribute('source', src.replace(/msdyn_cec_[A-Za-z]+\.svg/, 'msdyn_cec_Available.svg'));
+      svg.innerHTML = FAKE_CHECK;
+      b.dataset.radialFake = '1';
+    } catch (_) { /* a página trocou o elemento: refaz no próximo ciclo */ }
+  }
+
+  function dndTick() {
+    if (dndBusy) return;
+    const b = presenceBtn();
+    if (!b) return;
+    const label = btnLabel(b);
+    const faked = b.dataset.radialFake === '1' && AVAIL_RE.test(label) && /Available/.test((b.querySelector('svg') || {getAttribute: () => ''}).getAttribute('source') || '');
+    if (faked) return;
+    if (DND_RE.test(label)) { if (fakeActive) applyFakeLook(b); return; }
+    if (AVAIL_RE.test(label)) {
+      dndAvailLabel = label;
+      if (Date.now() - dndLastFail > 8000) switchToDnd();   // Disponível de verdade -> Não perturbe + disfarce
+      return;
+    }
+    if (fakeActive && label) setFake(false);                // outro status escolhido: não disfarça mais
+  }
+
+  // Clique de verdade no menu de presença: "Available" vira Não perturbe + disfarce; outro status desliga o disfarce.
+  function dndClick(e) {
+    if (!e.isTrusted) return;
+    const it = e.target.closest && e.target.closest('button[data-id^="presencestatus-"]');
+    if (!it) return;
+    if (isAvailItem(it)) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      const dnd = findDndItem();
+      if (dnd) { dnd.click(); setFake(true); }
+    } else setFake(false);
+  }
+
+  function refreshAutoDnd() {
+    const on = !!settings.autoDnd && autoDndHostMatch();
+    if (on && !dndTimer) {
+      dndTimer = setInterval(dndTick, 150);
+      document.addEventListener('click', dndClick, true);
+    } else if (!on && dndTimer) {
+      clearInterval(dndTimer); dndTimer = null;
+      document.removeEventListener('click', dndClick, true);
+      setFake(false);
+    }
+  }
+
   // ---------- Gatilhos configuráveis (página de opções) ----------
   // settings = { mouse: 'none'|'right-hold'|'middle'|'back'|'forward', holdMs, key: {code,ctrl,shift,alt,meta}|null,
   //              size: px, sticky: bool (soltar ativa a última fatia), cancel: 'none'|'right'|'middle'|'back'|'forward' }
-  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5 };
+  const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: true, autoDndHosts: 'isp.crm4.dynamics.com' };
   let settings = { ...DEFAULTS };
-  const applySettings = (s) => { settings = { ...DEFAULTS, ...(s || {}) }; };
+  const applySettings = (s) => { settings = { ...DEFAULTS, ...(s || {}) }; refreshAutoDnd(); };
   try {
     chrome.storage.sync.get('settings').then((r) => applySettings(r.settings));
     chrome.storage.onChanged.addListener((ch, area) => { if (area === 'sync' && ch.settings) applySettings(ch.settings.newValue); });

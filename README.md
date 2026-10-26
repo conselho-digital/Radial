@@ -30,6 +30,9 @@ Dois tipos, criados pelo popup ou pela página de configurações:
 ## Bookmarklets padrão
 O código fica em `defaults/<arquivo>.txt`, exatamente como enviado. `defaults/index.json` tem três partes: `bookmarklets` (`id`, `name`, `file`, `shortcut`), `remove` (ids a apagar, uma vez) e `presets` (por domínio: quais bookmarklets e ações prontas entram no radial, a ordem e quais opções padrão ficam escondidas). Tudo é aplicado uma vez na instalação/atualização; depois disso, o que o usuário mudar é respeitado.
 
+## Status automático (Dynamics)
+Nos sites da lista (padrão `isp.crm4.dynamics.com`, editável nas configurações), quando o botão de presença mostra Available a extensão muda o status real para Do not disturb e mantém a aparência de Available na sua tela. Dá para desligar em Configurações → Automatic status.
+
 ## Segurança
 - Menu e avisos ficam em Shadow DOM; a página não consegue estilizá-los.
 - Só eventos reais (`isTrusted`) abrem o menu ou escolhem uma fatia.
