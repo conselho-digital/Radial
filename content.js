@@ -763,12 +763,19 @@
   let dndTimer = null, dndBusy = false, dndLastFail = 0, dndAvailLabel = 'Available';
   let fakeActive = false;
   let dndReported = null;
-  // Avisa que o Não perturbe disfarçado está ativo: aviso na página (uma vez) e selo "DND" no ícone da extensão.
+  // Sinal discreto de que o Não perturbe disfarçado entrou: o título "ISP - Customer Service" do topo
+  // fica em negrito por 1 segundo e volta ao normal.
+  function flashBreadcrumb(tries = 0) {
+    const el = document.querySelector('span[data-id="appBreadCrumbText"]');
+    if (!el) { if (tries < 40) setTimeout(() => flashBreadcrumb(tries + 1), 250); return; } // a página ainda está montando
+    const prev = el.style.getPropertyValue('font-weight'), prevPri = el.style.getPropertyPriority('font-weight');
+    el.style.setProperty('font-weight', '700', 'important');
+    setTimeout(() => { if (prev) el.style.setProperty('font-weight', prev, prevPri); else el.style.removeProperty('font-weight'); }, 1000);
+  }
   function reportDnd(on) {
     if (dndReported === on) return;
     dndReported = on;
-    try { chrome.runtime.sendMessage({ type: 'dnd-state', on }).catch(() => {}); } catch (_) { /* contexto invalidado */ }
-    if (on) toast(tr('Do not disturb is on (it shows as Available)'));
+    if (on) flashBreadcrumb();
   }
   try { fakeActive = localStorage.getItem(DND_FLAG) === '1'; } catch (_) { /* sem localStorage */ }
   const setFake = (v) => { fakeActive = v; try { v ? localStorage.setItem(DND_FLAG, '1') : localStorage.removeItem(DND_FLAG); } catch (_) { /* ignora */ } };
