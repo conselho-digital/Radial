@@ -249,6 +249,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
 
+  // Selo no ícone da extensão enquanto o Não perturbe disfarçado está ativo nesta aba.
+  if (msg.type === 'dnd-state' && sender.tab && sender.frameId === 0) {
+    const tabId = sender.tab.id;
+    chrome.action.setBadgeText({ tabId, text: msg.on ? 'DND' : '' }).catch(() => {});
+    chrome.action.setBadgeBackgroundColor({ tabId, color: '#D13438' }).catch(() => {});
+    chrome.action.setTitle({ tabId, title: msg.on ? t('Radial: Do not disturb is on (it shows as Available)') : t('Radial options for this site') }).catch(() => {});
+    return;
+  }
   if (msg.type === 'bookmarklet-data' && sender.tab && sender.frameId === 0 && typeof msg.detail === 'string' && msg.detail.length < 200000) {
     saveBookmarkletData(msg.detail).catch(() => {});
     return;

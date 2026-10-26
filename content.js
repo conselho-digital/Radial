@@ -762,6 +762,14 @@
   const FAKE_CHECK = '<circle cx="8" cy="8" r="8" fill="#13A10E"></circle><path d="M10.666 5.13379C10.8027 5.13379 10.9297 5.15983 11.0469 5.21191C11.1673 5.26074 11.2715 5.3291 11.3594 5.41699C11.4473 5.50488 11.5156 5.60905 11.5645 5.72949C11.6165 5.84668 11.6426 5.97363 11.6426 6.11035C11.6426 6.24056 11.6182 6.36589 11.5693 6.48633C11.5205 6.60677 11.4505 6.71257 11.3594 6.80371L7.48242 10.6855C7.39128 10.7767 7.28548 10.8483 7.16504 10.9004C7.0446 10.9492 6.91927 10.9736 6.78906 10.9736C6.65885 10.9736 6.53353 10.9492 6.41309 10.9004C6.29264 10.8483 6.18685 10.7767 6.0957 10.6855L4.32812 8.91797C4.23698 8.82682 4.16536 8.72103 4.11328 8.60059C4.06445 8.48014 4.04004 8.35482 4.04004 8.22461C4.04004 8.08789 4.06608 7.96094 4.11816 7.84375C4.17025 7.72331 4.24023 7.61914 4.32812 7.53125C4.41602 7.44336 4.51855 7.375 4.63574 7.32617C4.75618 7.27409 4.88477 7.24805 5.02148 7.24805C5.15169 7.24805 5.27702 7.27246 5.39746 7.32129C5.5179 7.37012 5.6237 7.4401 5.71484 7.53125L6.78906 8.60547L9.97266 5.41699C10.0638 5.32585 10.1696 5.25586 10.29 5.20703C10.4105 5.1582 10.5358 5.13379 10.666 5.13379Z" fill="white"></path>';
   let dndTimer = null, dndBusy = false, dndLastFail = 0, dndAvailLabel = 'Available';
   let fakeActive = false;
+  let dndReported = null;
+  // Avisa que o Não perturbe disfarçado está ativo: aviso na página (uma vez) e selo "DND" no ícone da extensão.
+  function reportDnd(on) {
+    if (dndReported === on) return;
+    dndReported = on;
+    try { chrome.runtime.sendMessage({ type: 'dnd-state', on }).catch(() => {}); } catch (_) { /* contexto invalidado */ }
+    if (on) toast(tr('Do not disturb is on (it shows as Available)'));
+  }
   try { fakeActive = localStorage.getItem(DND_FLAG) === '1'; } catch (_) { /* sem localStorage */ }
   const setFake = (v) => { fakeActive = v; try { v ? localStorage.setItem(DND_FLAG, '1') : localStorage.removeItem(DND_FLAG); } catch (_) { /* ignora */ } };
 
@@ -812,17 +820,18 @@
   function dndTick() {
     if (dndBusy) return;
     const b = presenceBtn();
-    if (!b) return;
+    if (!b) { reportDnd(false); return; }
     const label = btnLabel(b);
     const faked = b.dataset.radialFake === '1' && AVAIL_RE.test(label) && /Available/.test((b.querySelector('svg') || {getAttribute: () => ''}).getAttribute('source') || '');
-    if (faked) return;
-    if (DND_RE.test(label)) { if (fakeActive) applyFakeLook(b); return; }
+    if (faked) { reportDnd(true); return; }
+    if (DND_RE.test(label)) { if (fakeActive) { applyFakeLook(b); reportDnd(true); } else reportDnd(false); return; }
     if (AVAIL_RE.test(label)) {
       dndAvailLabel = label;
       if (Date.now() - dndLastFail > 8000) switchToDnd();   // Disponível de verdade -> Não perturbe + disfarce
       return;
     }
     if (fakeActive && label) setFake(false);                // outro status escolhido: não disfarça mais
+    reportDnd(false);
   }
 
   // Clique de verdade no menu de presença: "Available" vira Não perturbe + disfarce; outro status desliga o disfarce.
@@ -844,6 +853,7 @@
       document.addEventListener('click', dndClick, true);
     } else if (!on && dndTimer) {
       clearInterval(dndTimer); dndTimer = null;
+      reportDnd(false);
       document.removeEventListener('click', dndClick, true);
       setFake(false);
     }
