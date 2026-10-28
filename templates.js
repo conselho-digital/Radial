@@ -374,32 +374,53 @@
     lines.forEach((l, i) => { const e = document.createElement(i === 0 ? 'b' : 'p'); e.textContent = l; box.appendChild(e); });
     const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '×'; x.onclick = () => toastHost.remove();
     box.appendChild(x); r.append(st, box); document.body.appendChild(toastHost);
+    if (isErr) { const mine = toastHost; setTimeout(() => { if (toastHost === mine) { mine.remove(); toastHost = null; } }, 15000); }
   }
 
   const nativeSet = (el, v) => Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+  const KEYCODES = { Enter: 13, Escape: 27, Semicolon: 186 };
   function key(el, k, code) {
-    ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t, { key: k, code, keyCode: code === 'Enter' ? 13 : 0, which: code === 'Enter' ? 13 : 0, bubbles: true, cancelable: true })));
+    ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t, { key: k, code, keyCode: KEYCODES[code] || 0, which: KEYCODES[code] || 0, bubbles: true, cancelable: true })));
   }
-  const tagTexts = () => [...document.querySelectorAll(TO_TAG)].map((t) => norm(t.getAttribute('title') || t.textContent).toLowerCase());
-  // Já está no campo? Compara o e-mail ou o nome do contato com os destinatários.
-  const hasRecipient = (c) => tagTexts().some((t) => t.includes(c.email.toLowerCase()) || (c.name && t === norm(c.name).toLowerCase()));
+  const tagEls = () => [...document.querySelectorAll(TO_TAG)];
+  const tagTexts = () => tagEls().map((t) => norm(t.getAttribute('title') || t.textContent).toLowerCase());
+  // Já está no campo? O Dynamics troca o e-mail pelo nome do contato (às vezes com "(Away)"), então compara os dois.
+  const hasRecipient = (c) => tagTexts().some((t) => t.includes(c.email.toLowerCase()) || (c.name && t.includes(norm(c.name).toLowerCase())));
+  const noRecords = () => [...document.querySelectorAll('div,span,li,p')].some((e) => e.children.length === 0 && visible(e) && /^no records found/i.test(norm(e.textContent)));
 
-  async function addRecipient(email) {
+  // Digita um texto no campo e espera o Dynamics terminar a busca. Devolve true se há resultados para escolher.
+  async function search(input, text) {
+    nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
+    nativeSet(input, text); input.dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(900);
+    for (let i = 0; i < 10; i++) { if (noRecords()) return false; await sleep(200); }
+    return true;
+  }
+  function clearInput(input) {
+    nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
+    key(input, 'Escape', 'Escape');
+  }
+
+  // Uma única tentativa por contato: busca pelo e-mail; se não achar registro, busca pelo nome.
+  // Só vale se aparecer um destinatário novo que seja a pessoa (nome ou e-mail); se vier outra pessoa, desfaz.
+  async function addRecipient(c) {
     const input = document.querySelector(TO_INPUT);
     if (!input) throw new StepError('To box');
-    const want = email.toLowerCase();
-    const added = () => tagTexts().some((t) => t.includes(want));
-    input.focus(); realClick(input);
-    nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
-    nativeSet(input, email); input.dispatchEvent(new Event('input', { bubbles: true }));
-    await sleep(700);
-    key(input, 'Enter', 'Enter');
-    if (await waitFor(added, 3000)) return true;
-    nativeSet(input, email + ';'); input.dispatchEvent(new Event('input', { bubbles: true }));
-    key(input, ';', 'Semicolon');
-    if (await waitFor(added, 3000)) return true;
-    input.dispatchEvent(new Event('blur', { bubbles: true })); input.blur();
-    return !!(await waitFor(added, 3000));
+    const before = tagEls().length;
+    const nm = norm(c.name).toLowerCase();
+    for (const text of [c.email, c.name].filter(Boolean)) {
+      input.focus(); realClick(input);
+      if (!(await search(input, text))) continue;       // "No records found": tenta o próximo texto
+      key(input, 'Enter', 'Enter');
+      if (await waitFor(() => tagEls().length > before, 3000)) {
+        const fresh = tagEls().slice(before).map((t) => norm(t.getAttribute('title') || t.textContent).toLowerCase());
+        if (fresh.some((t) => t.includes(c.email.toLowerCase()) || (nm && t.includes(nm)))) return true;
+        tagEls().slice(before).forEach((t) => { const d = t.parentElement && t.parentElement.querySelector('[data-id$="_selected_tag_delete"]'); if (d) realClick(d); });
+        await sleep(300);
+      }
+    }
+    clearInput(input);
+    return false;
   }
 
   async function insertRC() {
@@ -416,7 +437,7 @@
       const done = [], failed = [];
       for (const c of res.rows) {
         if (hasRecipient(c)) continue;                 // já está: não faz nada
-        (await addRecipient(c.email).catch(() => false) ? done : failed).push(c);
+        (await addRecipient(c).catch(() => false) ? done : failed).push(c);
       }
       const notes = done.filter((c) => c.comment).map((c) => (c.name ? c.name + ' (' + c.email + '): ' : '') + c.comment);
       if (failed.length) toast([tr('Insert RC'), tr('Could not add: {list}', { list: failed.map((c) => c.email).join(', ') })].concat(notes), true);
@@ -437,7 +458,7 @@
     rcHost = document.createElement('div');
     const r = rcHost.attachShadow({ mode: 'open' });
     const st = document.createElement('style');
-    st.textContent = ':host{display:block;margin-top:6px}button{font:600 12px "Segoe UI",system-ui,sans-serif;padding:4px 12px;border:1px solid #0078d4;border-radius:4px;background:#0078d4;color:#fff;cursor:pointer}button:hover{filter:brightness(1.1)}button:disabled{opacity:.6;cursor:default}';
+    st.textContent = ':host{display:block;margin-top:6px}button{font:400 14px "Segoe UI",system-ui,sans-serif;white-space:nowrap;min-width:104px;padding:6px 20px;border:1px solid #8a8886;border-radius:4px;background:#f3f2f1;color:#242424;cursor:pointer}button:hover{background:#e1dfdd}button:disabled{opacity:.6;cursor:default}@media(prefers-color-scheme:dark){button{background:#3b3b3b;color:#f0f0f0;border-color:#666}button:hover{background:#4a4a4a}}';
     const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Insert RC'); b.onclick = () => insertRC();
     r.append(st, b);
     label.insertAdjacentElement('afterend', rcHost);
