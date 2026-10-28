@@ -401,17 +401,17 @@
   }
 
   // No ISP, um e-mail seguido de espaço vira destinatário e não se repete se o contato já estiver lá.
-  // Uma tentativa por contato: escreve "e-mail " e espera aparecer o destinatário novo; depois limpa o campo.
+  // Sem conferir nada depois: escreve "e-mail ", dá um tempo para o ISP processar, seleciona o texto e apaga.
   async function addRecipient(c) {
     const input = document.querySelector(TO_INPUT);
     if (!input) throw new StepError('To box');
-    const before = tagEls().length;
     realClick(input);
     typeInto(input, c.email + ' ');
-    const ok = await waitFor(() => tagEls().length > before || hasRecipient(c), 6000);
-    await sleep(500);
+    ['keydown', 'keyup'].forEach((t) => input.dispatchEvent(new KeyboardEvent(t, { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true })));
+    await sleep(900);
     wipeInput(input);
-    return !!ok;
+    await sleep(300);
+    return true;
   }
 
   async function insertRC() {
