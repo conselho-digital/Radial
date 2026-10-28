@@ -109,7 +109,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: true, autoDndHosts: 'isp.crm4.dynamics.com' };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com' };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -138,7 +138,7 @@ function showCfg() {
   $('contentScale').value = Math.round((cfg.contentScale || 1.5) * 100);
   $('contentOut').textContent = Math.round((cfg.contentScale || 1.5) * 100) + '%';
   $('sticky').checked = !!cfg.sticky;
-  $('autoDnd').checked = cfg.autoDnd !== false;
+  $('autoDnd').checked = !!cfg.autoDnd;
   if (document.activeElement !== $('autoDndHosts')) $('autoDndHosts').value = String(cfg.autoDndHosts || '').split(/[\s,;]+/).filter(Boolean).join('\n');
   const trig = { middle: 'middle', back: 'back', forward: 'forward', 'right-hold': 'right' }[cfg.mouse];
   if (trig && cfg.cancel === trig) cfg.cancel = 'none';
