@@ -150,6 +150,9 @@
       const apply = await waitFor(() => { const b = findClickable(dlg, /^apply template$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 4000);
       if (!apply) throw new StepError('Apply template button');
       realClick(apply);
+      // o Dynamics pergunta se troca o assunto: confirma com OK (só aparece se houver assunto)
+      const ok = await waitFor(() => [...document.querySelectorAll('button[data-id="confirmButton"]')].find(visible), 2500);
+      if (ok) realClick(ok);
       await waitFor(() => !document.contains(dlg) || !visible(dlg), 6000);
       return true;
     });
