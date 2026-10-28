@@ -165,9 +165,11 @@
         <textarea id="emailTplHosts" spellcheck="false" style="min-height:60px" placeholder="isp.crm4.dynamics.com"></textarea>
       </div>
       <div class="field">
-        <label class="lbl" for="emailTplMax">Templates to show</label>
+        <label class="lbl" for="emailTplMax">Templates to remember</label>
         <input type="number" id="emailTplMax" min="1" max="30" step="1" style="width:90px">
-        <p class="help">The most used ones come first. Everything you use or see in Recently used is remembered.</p>
+        <label class="lbl" for="emailTplShow" style="margin-top:10px">Visible without scrolling</label>
+        <input type="number" id="emailTplShow" min="1" max="30" step="1" style="width:90px">
+        <p class="help">The last ones you used come first; the rest appear by scrolling the list.</p>
       </div>
     </section>
 

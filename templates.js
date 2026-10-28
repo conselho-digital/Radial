@@ -14,7 +14,7 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
-  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplMax: 8, removeQueueName: 'eMobility Support Queue' };
+  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplMax: 8, emailTplShow: 5, removeQueueName: 'eMobility Support Queue' };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => {
     const h = hostKey();
@@ -173,12 +173,14 @@
     .msg{font-size:12px;opacity:.75;margin-top:6px}
     .err{color:#c4314b;opacity:1}
     .dbg{border:0;background:none;color:#0078d4;cursor:pointer;font-size:12px;padding:0;text-decoration:underline}
+    .list{overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
     .busy .it{opacity:.5;pointer-events:none}`;
-  // Histórico acumulado: cada template visto em "Recently used" ou aplicado pelo cartão fica guardado,
-  // com a contagem de usos. O cartão mostra os mais usados (depois os mais recentes), até o máximo escolhido.
+  // Histórico: guarda os últimos templates vistos em "Recently used" ou aplicados pelo cartão (o mais recente primeiro).
+  // O cartão mostra os primeiros e o resto aparece rolando a lista.
   let hist = [];
   const maxShown = () => Math.min(30, Math.max(1, parseInt(settings.emailTplMax, 10) || 8));
-  const rank = () => [...hist].sort((a, b) => (b.count - a.count) || (b.last - a.last)).slice(0, maxShown());
+  const showCount = () => Math.min(30, Math.max(1, parseInt(settings.emailTplShow, 10) || 5));
+  const rank = () => [...hist].sort((a, b) => b.last - a.last).slice(0, maxShown());
   const saveHist = () => chrome.storage.local.set({ [STORE_KEY]: { items: hist.slice(0, 80), t: Date.now() } });
   function seen(list) {
     const now = Date.now();
@@ -206,14 +208,16 @@
     const ref = document.createElement('button'); ref.className = 'ref'; ref.type = 'button'; ref.textContent = '↻'; ref.title = tr('Refresh');
     ref.onclick = () => refresh(true);
     head.append(title, ref); card.appendChild(head);
+    const list = document.createElement('div'); list.className = 'list';
     items.forEach((it) => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'it';
       const n = document.createElement('b'); n.textContent = it.name;
       b.appendChild(n);
       if (it.type) { const s = document.createElement('span'); s.textContent = it.type; b.appendChild(s); }
       b.onclick = () => apply(it);
-      card.appendChild(b);
+      list.appendChild(b);
     });
+    card.appendChild(list);
     if (!items.length && !working && !lastErr) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = tr('No recent templates found.'); card.appendChild(m); }
     if (status) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = status; card.appendChild(m); }
     if (lastErr) {
@@ -222,6 +226,9 @@
       d.onclick = copyDebug; m.appendChild(d); card.appendChild(m);
     }
     root.appendChild(card);
+    // mostra só os primeiros N itens; o resto aparece rolando
+    const kids = list.children, n = showCount();
+    if (kids.length > n) list.style.maxHeight = (kids[n - 1].getBoundingClientRect().bottom - list.getBoundingClientRect().top + 2) + 'px';
   }
 
   async function copyDebug() {
@@ -237,7 +244,7 @@
       const list = await readRecent();
       if (list) {
         seen(list);
-        hist.sort((a, b) => (b.count - a.count) || (b.last - a.last));
+        hist.sort((a, b) => b.last - a.last);
         hist = hist.slice(0, 80);
         items = rank();
         await saveHist();
