@@ -53,16 +53,30 @@
     document.head.appendChild(st);
   }
 
+  // Clique com a sequência completa de eventos (o Dynamics ignora .click() puro em alguns botões).
+  function realClick(el) {
+    const o = { bubbles: true, cancelable: true, view: window, button: 0 };
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((t) => {
+      el.dispatchEvent(new (t.startsWith('pointer') ? PointerEvent : MouseEvent)(t, o));
+    });
+  }
+  let lastDebug = '';
+  const outline = (el) => el ? el.outerHTML.replace(/\s+(class|style|data-tabster)="[^"]*"/g, '').slice(0, 2500) : '(none)';
+
   class StepError extends Error { constructor(step) { super(step); this.step = step; } }
 
   // Abre "Email templates": Insert Template, e se aparecer "Select Record" escolhe Regarding > Select.
   const tplDialog = () => [...document.querySelectorAll('[data-id="EmailTemplateDialog"]')].find(visible);
-  const selDialog = () => dialogWith(/Select Record/i);
+  const selDialog = () => {
+    const f = [...document.querySelectorAll('button[data-id="fieldname_id.fieldControl-option-set-select"]')].find(visible);
+    for (let n = f; n && n !== document.body; n = n.parentElement) if (n.querySelector('button[data-id="select_id"]')) return n;
+    return dialogWith(/Select Record/i);
+  };
   async function openTemplatesDialog() {
     const insertBtn = () => [...document.querySelectorAll('button[data-id$="InsertConvertTemplateMenu"]')].find(visible);
     const btn = await waitFor(insertBtn, 3000);
     if (!btn) throw new StepError('Insert Template button');
-    btn.click();
+    realClick(btn);
     const first = await waitFor(() => tplDialog() || selDialog(), 6000);
     if (!first) throw new StepError('Select Record / Email templates window');
 
@@ -71,15 +85,15 @@
       const field = sel.querySelector('button[data-id="fieldname_id.fieldControl-option-set-select"], [role="combobox"]');
       if (!field) throw new StepError('Field Name dropdown');
       if (!/regarding/i.test(field.value || field.title || field.textContent)) {
-        field.click();
+        realClick(field);
         const opt = await waitFor(() => [...document.querySelectorAll('[role="option"]')].find((o) => visible(o) && /^regarding$/i.test(norm(o.textContent))), 3000);
         if (!opt) throw new StepError('Regarding option');
-        opt.click();
+        realClick(opt);
         await sleep(300);
       }
       const select = await waitFor(() => { const b = findClickable(sel, /^select$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 6000);
       if (!select) throw new StepError('Select button');
-      select.click();
+      realClick(select);
     }
     const dlg = await waitFor(() => { const d = tplDialog(); return d && d.querySelector('input[type="radio"]') ? d : null; }, 12000);
     if (!dlg) throw new StepError('Email templates window');
@@ -96,7 +110,7 @@
       return { section, name, type, radio, label: box.querySelector('label') };
     }).filter((r) => r.name);
   }
-  const closeDialog = (dlg) => { const c = dlg.querySelector('button[data-id="cancel_id"]') || findClickable(dlg, /^cancel$/i); if (c) c.click(); };
+  const closeDialog = (dlg) => { const c = dlg.querySelector('button[data-id="cancel_id"]') || findClickable(dlg, /^cancel$/i); if (c) realClick(c); };
 
   let busy = false;
   async function withDialog(fn) {
@@ -107,6 +121,9 @@
     try {
       dlg = await openTemplatesDialog();
       return await fn(dlg);
+    } catch (e) {
+      lastDebug = 'Step: ' + (e.step || e.message) + '\n\nDialogs:\n' + [tplDialog(), selDialog()].filter(Boolean).map((d) => outline(d).slice(0, 2500)).join('\n---\n');
+      throw e;
     } finally {
       try { [tplDialog(), selDialog()].filter(Boolean).forEach(closeDialog); } catch (_) { /* ignora */ }
       await sleep(250);
@@ -125,10 +142,10 @@
     return withDialog(async (dlg) => {
       const row = templateRows(dlg).find((r) => r.name === name);
       if (!row) throw new StepError('template "' + name + '" in the list');
-      (row.label || row.radio).click();
+      realClick(row.label || row.radio);
       const apply = await waitFor(() => { const b = findClickable(dlg, /^apply template$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 4000);
       if (!apply) throw new StepError('Apply template button');
-      apply.click();
+      realClick(apply);
       await waitFor(() => !document.contains(dlg) || !visible(dlg), 6000);
       return true;
     });
@@ -181,9 +198,7 @@
   }
 
   async function copyDebug() {
-    const outline = (el) => el ? el.outerHTML.replace(/\s+(class|style|data-tabster)="[^"]*"/g, '').slice(0, 6000) : '(none)';
-    const info = ['URL: ' + location.href, 'Insert Template: ' + outline(document.querySelector('button[data-id$="InsertConvertTemplateMenu"]')),
-      'Dialogs: ' + dialogs().map(outline).join('\n---\n')].join('\n\n');
+    const info = ['URL: ' + location.href, lastDebug || '(no snapshot)', 'Insert Template: ' + outline(document.querySelector('button[data-id$="InsertConvertTemplateMenu"]'))].join('\n\n');
     try { await navigator.clipboard.writeText(info); status = tr('Debug info copied.'); } catch (_) { status = '—'; }
     render();
   }
