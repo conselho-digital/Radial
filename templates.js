@@ -435,8 +435,12 @@
       if (!res || !res.ok) return toast([tr('Insert RC'), (res && res.error) || tr('Could not read the list.')], true);
       if (!res.rows.length) return toast([tr('Insert RC'), tr('No contact for {code} in the list.', { code })], true);
       const done = [], failed = [];
+      const empty = tagEls().length === 0;             // To vazio: não precisa conferir, só insere
+      const seenMail = new Set();
       for (const c of res.rows) {
-        if (hasRecipient(c)) continue;                 // já está: não faz nada
+        if (seenMail.has(c.email.toLowerCase())) continue;
+        seenMail.add(c.email.toLowerCase());
+        if (!empty && hasRecipient(c)) continue;       // já está (pelo e-mail ou pelo nome): não faz nada
         (await addRecipient(c).catch(() => false) ? done : failed).push(c);
       }
       const notes = done.filter((c) => c.comment).map((c) => (c.name ? c.name + ' (' + c.email + '): ' : '') + c.comment);
