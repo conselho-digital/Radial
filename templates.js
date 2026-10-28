@@ -379,58 +379,39 @@
   }
 
   const nativeSet = (el, v) => Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
-  const KEYCODES = { Enter: 13, Escape: 27, Semicolon: 186 };
-  function key(el, k, code) {
-    ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t, { key: k, code, keyCode: KEYCODES[code] || 0, which: KEYCODES[code] || 0, bubbles: true, cancelable: true })));
-  }
   const tagEls = () => [...document.querySelectorAll(TO_TAG)];
   const tagTexts = () => tagEls().map((t) => norm(t.getAttribute('title') || t.textContent).toLowerCase());
   // Já está no campo? O Dynamics troca o e-mail pelo nome do contato (às vezes com "(Away)"), então compara os dois.
   const hasRecipient = (c) => tagTexts().some((t) => t.includes(c.email.toLowerCase()) || (c.name && t.includes(norm(c.name).toLowerCase())));
-  const noRecords = () => [...document.querySelectorAll('div,span,li,p')].some((e) => e.children.length === 0 && visible(e) && /^no records found/i.test(norm(e.textContent)));
 
-  // Digita um texto no campo e espera o Dynamics terminar a busca. Devolve true se há resultados para escolher.
-  async function search(input, text) {
-    nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
-    nativeSet(input, text); input.dispatchEvent(new Event('input', { bubbles: true }));
-    await sleep(900);
-    for (let i = 0; i < 10; i++) { if (noRecords()) return false; await sleep(200); }
-    return true;
+  // Digita como uma pessoa: seleciona o que houver no campo e escreve por cima (gera os eventos normais de digitação).
+  function typeInto(input, text) {
+    input.focus();
+    input.select();
+    if (!document.execCommand('insertText', false, text)) {      // plano B se o navegador recusar
+      nativeSet(input, text);
+      input.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+    }
   }
-  function clearInput(input) {
-    nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
-    key(input, 'Escape', 'Escape');
-  }
-  // O Dynamics às vezes devolve o texto digitado e reabre a lista depois que o contato já entrou:
-  // espera um pouco, limpa o campo e tira o foco para fechar a lista.
-  async function settle(input) {
-    await sleep(1500);
-    clearInput(input);
-    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-    input.blur();
-    await sleep(300);
+  // Seleciona o texto que sobrou no campo e apaga.
+  function wipeInput(input) {
+    input.focus();
+    input.select();
+    if (!document.execCommand('delete')) { nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })); }
   }
 
-  // Uma única tentativa por contato: busca pelo e-mail; se não achar registro, busca pelo nome.
-  // Só vale se aparecer um destinatário novo que seja a pessoa (nome ou e-mail); se vier outra pessoa, desfaz.
+  // No ISP, um e-mail seguido de espaço vira destinatário e não se repete se o contato já estiver lá.
+  // Uma tentativa por contato: escreve "e-mail " e espera aparecer o destinatário novo; depois limpa o campo.
   async function addRecipient(c) {
     const input = document.querySelector(TO_INPUT);
     if (!input) throw new StepError('To box');
     const before = tagEls().length;
-    const nm = norm(c.name).toLowerCase();
-    for (const text of [c.email, c.name].filter(Boolean)) {
-      input.focus(); realClick(input);
-      if (!(await search(input, text))) continue;       // "No records found": tenta o próximo texto
-      key(input, 'Enter', 'Enter');
-      if (await waitFor(() => tagEls().length > before, 3000)) {
-        const fresh = tagEls().slice(before).map((t) => norm(t.getAttribute('title') || t.textContent).toLowerCase());
-        if (fresh.some((t) => t.includes(c.email.toLowerCase()) || (nm && t.includes(nm)))) { await settle(input); return true; }
-        tagEls().slice(before).forEach((t) => { const d = t.parentElement && t.parentElement.querySelector('[data-id$="_selected_tag_delete"]'); if (d) realClick(d); });
-        await sleep(300);
-      }
-    }
-    await settle(input);
-    return false;
+    realClick(input);
+    typeInto(input, c.email + ' ');
+    const ok = await waitFor(() => tagEls().length > before || hasRecipient(c), 6000);
+    await sleep(500);
+    wipeInput(input);
+    return !!ok;
   }
 
   async function insertRC() {
