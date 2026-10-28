@@ -288,6 +288,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Cartão de templates: apaga o item de lista vazio "Troubleshooting:" que alguns templates deixam no corpo.
+  if (msg.type === 'tpl-drop-ts' && sender.tab && sender.frameId === 0) {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      world: 'MAIN',
+      func: () => {
+        let total = 0;
+        document.querySelectorAll('.ck-editor__editable').forEach((el) => {
+          const ed = el.ckeditorInstance;
+          if (!ed || !ed.model) return;
+          ed.model.change((w) => {
+            const hits = [];
+            for (const item of w.createRangeIn(ed.model.document.getRoot()).getItems()) {
+              if (!item.is('element') || !(item.name === 'listItem' || item.hasAttribute('listItemId'))) continue;
+              const text = [...w.createRangeIn(item).getItems()].filter((i) => i.is('$textProxy')).map((i) => i.data).join('');
+              if (/^[\s\u00a0\ufeff]*Troubleshooting[\s\u00a0\ufeff]*:?[\s\u00a0\ufeff]*$/i.test(text)) hits.push(item);
+            }
+            hits.forEach((h) => { w.remove(h); total++; });
+          });
+        });
+        return total;
+      },
+    }).then((r) => sendResponse({ n: (r && r[0] && r[0].result) || 0 })).catch(() => sendResponse({ n: 0 }));
+    return true;
+  }
+
   // Vindo do content script (só o frame principal de uma aba): executa uma opção JavaScript.
   if (msg.type === 'run-option' && sender.tab && sender.frameId === 0 && typeof msg.id === 'string') {
     // O código nunca trafega pelo content script: é lido aqui, do armazenamento.

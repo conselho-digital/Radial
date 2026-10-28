@@ -272,12 +272,24 @@
     return code;
   }
 
+  // "eMob - first response NEW" e "eMob - First response missing info NEW": tira o item vazio "Troubleshooting:".
+  const TS_TEMPLATE = /^eMob - (first response NEW|First response missing info NEW)$/i;
+  async function dropTroubleshooting() {
+    let n = 0, t0 = Date.now();
+    while (!n && Date.now() - t0 < 8000) {
+      try { n = ((await chrome.runtime.sendMessage({ type: 'tpl-drop-ts' })) || {}).n || 0; } catch (_) { /* ignora */ }
+      if (!n) await sleep(500);
+    }
+    if (!n) throw new StepError('"Troubleshooting" item in the email body');
+  }
+
   async function apply(it) {
     if (working) return;
     working = true; status = tr('Applying…'); lastErr = null; render();
     try {
       await applyTemplate(it.name);
       if (RC_TEMPLATE.test(it.name)) await fillRC();
+      if (TS_TEMPLATE.test(it.name)) await dropTroubleshooting();
       items = [it, ...items.filter((x) => x.name !== it.name)];
       await chrome.storage.local.set({ [STORE_KEY]: { items, t: Date.now() } });
       status = '';
