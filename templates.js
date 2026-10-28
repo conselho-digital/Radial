@@ -73,7 +73,7 @@
     return dialogWith(/Select Record/i);
   };
   async function openTemplatesDialog() {
-    const insertBtn = () => [...document.querySelectorAll('button[data-id$="InsertConvertTemplateMenu"]')].find(visible);
+    const insertBtn = () => [...document.querySelectorAll('button[data-id$="InsertConvertTemplateMenu"]')].find((b) => visible(b) && !b.disabled && b.getAttribute('aria-disabled') !== 'true');
     const btn = await waitFor(insertBtn, 3000);
     if (!btn) throw new StepError('Insert Template button');
     realClick(btn);
@@ -90,7 +90,9 @@
         const opt = await waitFor(() => [...document.querySelectorAll('[role="option"]')].find((o) => visible(o) && /^regarding$/i.test(norm(o.textContent))), 3000);
         if (!opt) throw new StepError('Regarding option');
         realClick(opt);
-        await sleep(300);
+        // confirma que o dropdown realmente ficou em "Regarding" antes de seguir
+        const ok = await waitFor(() => { const f = [...document.querySelectorAll(fieldSel)].find(visible); return f && /regarding/i.test(f.value || f.title || f.textContent); }, 4000);
+        if (!ok) throw new StepError('Regarding not selected');
       }
       const select = await waitFor(() => { const b = findClickable(selDialog() || document, /^select$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 6000);
       if (!select) throw new StepError('Select button');
@@ -144,6 +146,7 @@
       const row = templateRows(dlg).find((r) => r.name === name);
       if (!row) throw new StepError('template "' + name + '" in the list');
       realClick(row.label || row.radio);
+      if (!(await waitFor(() => row.radio.checked, 3000))) throw new StepError('template not selected');
       const apply = await waitFor(() => { const b = findClickable(dlg, /^apply template$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 4000);
       if (!apply) throw new StepError('Apply template button');
       realClick(apply);
