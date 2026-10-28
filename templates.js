@@ -56,59 +56,47 @@
   class StepError extends Error { constructor(step) { super(step); this.step = step; } }
 
   // Abre "Email templates": Insert Template, e se aparecer "Select Record" escolhe Regarding > Select.
+  const tplDialog = () => [...document.querySelectorAll('[data-id="EmailTemplateDialog"]')].find(visible);
+  const selDialog = () => dialogWith(/Select Record/i);
   async function openTemplatesDialog() {
     const insertBtn = () => [...document.querySelectorAll('button[data-id$="InsertConvertTemplateMenu"]')].find(visible);
     const btn = await waitFor(insertBtn, 3000);
     if (!btn) throw new StepError('Insert Template button');
     btn.click();
-    const first = await waitFor(() => dialogWith(/Select Record|Email templates/i), 6000);
+    const first = await waitFor(() => tplDialog() || selDialog(), 6000);
     if (!first) throw new StepError('Select Record / Email templates window');
 
-    const sel = dialogWith(/Select Record/i);
+    const sel = tplDialog() ? null : selDialog();
     if (sel) {
-      const field = sel.querySelector('[role="combobox"], select, button[aria-haspopup="listbox"]');
+      const field = sel.querySelector('button[data-id="fieldname_id.fieldControl-option-set-select"], [role="combobox"]');
       if (!field) throw new StepError('Field Name dropdown');
-      if (field.tagName === 'SELECT') {
-        const opt = [...field.options].find((o) => /regarding/i.test(o.textContent));
-        if (!opt) throw new StepError('Regarding option');
-        field.value = opt.value; field.dispatchEvent(new Event('change', { bubbles: true }));
-      } else if (!/regarding/i.test(labelOf(field))) {
+      if (!/regarding/i.test(field.value || field.title || field.textContent)) {
         field.click();
-        const opt = await waitFor(() => [...document.querySelectorAll('[role="option"], [role="menuitemradio"], [role="menuitem"]')].find((o) => visible(o) && /^regarding$/i.test(labelOf(o))), 3000);
+        const opt = await waitFor(() => [...document.querySelectorAll('[role="option"]')].find((o) => visible(o) && /^regarding$/i.test(norm(o.textContent))), 3000);
         if (!opt) throw new StepError('Regarding option');
         opt.click();
+        await sleep(300);
       }
-      const select = await waitFor(() => { const b = findClickable(sel, /^select$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 5000);
+      const select = await waitFor(() => { const b = findClickable(sel, /^select$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 6000);
       if (!select) throw new StepError('Select button');
       select.click();
     }
-    const dlg = await waitFor(() => { const d = dialogWith(/Email templates/i); return d && /recently used/i.test(norm(d.textContent)) && d.querySelector('input[type="radio"], [role="radio"]') ? d : null; }, 10000);
+    const dlg = await waitFor(() => { const d = tplDialog(); return d && d.querySelector('input[type="radio"]') ? d : null; }, 12000);
     if (!dlg) throw new StepError('Email templates window');
     return dlg;
   }
 
-  // Linhas do template: cada rádio tem nome (1ª linha) e tipo (2ª linha), dentro de "Recently used" ou "All templates".
+  // Linhas do template: radios "RecentItemSectionID_n" (usados recentemente) e "OtherSectionID…_n" (todos).
   function templateRows(dlg) {
-    const rows = [];
-    let section = '';
-    const all = [dlg, ...dlg.querySelectorAll('*')];
-    all.forEach((el) => {
-      if (el.children.length === 0 || el === dlg) {
-        const own = norm(el.textContent);
-        if (/^recently used$/i.test(own)) section = 'recent';
-        else if (/^all templates/i.test(own)) section = 'all';
-      }
-      if (el.matches && el.matches('input[type="radio"], [role="radio"]')) {
-        const row = el.closest('[role="listitem"], [role="option"], li, label') || el.parentElement.parentElement;
-        const lines = String((row && row.innerText) || '').split('\n').map(norm).filter(Boolean);
-        const name = norm(el.getAttribute('aria-label')) || lines[0] || '';
-        const type = lines.find((l) => l !== name && !/^(›|v|\^)$/.test(l)) || '';
-        if (name) rows.push({ section, name, type, radio: el });
-      }
-    });
-    return rows;
+    return [...dlg.querySelectorAll('input[type="radio"]')].map((radio) => {
+      const box = radio.closest('.ms-ChoiceField') || radio.parentElement;
+      const name = norm((box.querySelector('.titleText') || {}).textContent);
+      const type = norm((box.querySelector('.sectionSubtext') || {}).textContent);
+      const section = /RecentItemSectionID/.test(radio.id) ? 'recent' : 'all';
+      return { section, name, type, radio, label: box.querySelector('label') };
+    }).filter((r) => r.name);
   }
-  const closeDialog = (dlg) => { const c = findClickable(dlg, /^cancel$/i); if (c) c.click(); };
+  const closeDialog = (dlg) => { const c = dlg.querySelector('button[data-id="cancel_id"]') || findClickable(dlg, /^cancel$/i); if (c) c.click(); };
 
   let busy = false;
   async function withDialog(fn) {
@@ -120,7 +108,7 @@
       dlg = await openTemplatesDialog();
       return await fn(dlg);
     } finally {
-      try { if (dlg && document.contains(dlg)) closeDialog(dlg); } catch (_) { /* ignora */ }
+      try { [tplDialog(), selDialog()].filter(Boolean).forEach(closeDialog); } catch (_) { /* ignora */ }
       await sleep(250);
       hideDialogs(false);
       busy = false;
@@ -137,7 +125,7 @@
     return withDialog(async (dlg) => {
       const row = templateRows(dlg).find((r) => r.name === name);
       if (!row) throw new StepError('template "' + name + '" in the list');
-      row.radio.click();
+      (row.label || row.radio).click();
       const apply = await waitFor(() => { const b = findClickable(dlg, /^apply template$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 4000);
       if (!apply) throw new StepError('Apply template button');
       apply.click();
@@ -231,7 +219,7 @@
   const isEmailDraft = () => {
     const s = attachmentsSection();
     if (!s || !/\|email/i.test((s.querySelector('[data-lp-id]') || {}).getAttribute?.('data-lp-id') || '')) return null;
-    return [...document.querySelectorAll('.value-text')].some((d) => norm(d.textContent) === 'Draft') ? s : null;
+    return document.querySelector('button[data-id$="InsertConvertTemplateMenu"]') ? s : null;
   };
 
   let loadedCache = false;
