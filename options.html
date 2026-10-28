@@ -43,7 +43,6 @@
 
   <main class="cols">
     <div class="col">
-    <!-- ===== Gatilho ===== -->
     <section class="card" aria-labelledby="h-trigger">
       <div class="card-head">
         <h2 id="h-trigger">How to open the menu</h2>
@@ -134,17 +133,6 @@
       </div>
     </section>
 
-    </div>
-    <div class="col">
-    <!-- ===== Bookmarklets ===== -->
-    <section class="card" aria-labelledby="h-bm">
-      <div class="card-head">
-        <h2 id="h-bm">Bookmarklets</h2>
-        <p class="lead">Paste the code and give it a name. Optionally record a keyboard shortcut to run it on any page. You can also show it in the radial.</p>
-      </div>
-      <div id="bmEditor"></div>
-    </section>
-
     <section class="card" aria-labelledby="h-auto">
       <div class="card-head">
         <h2 id="h-auto"><label class="h2-check" title="On the sites below, whenever your status is Do not disturb (no calls), the extension shows it as Available on your screen. If the presence button shows Available, it switches you to Do not disturb. Hold Shift while choosing Available to get the real Available. Any other status is shown as it is."><input type="checkbox" id="autoDnd"><span>Automatic status</span></label></h2>
@@ -154,6 +142,15 @@
         <textarea id="autoDndHosts" spellcheck="false" style="min-height:80px" placeholder="isp.crm4.dynamics.com"></textarea>
         <p class="help">Changes apply right away. Pages already open may need a refresh.</p>
       </div>
+    </section>
+    </div>
+    <div class="col">
+    <section class="card" aria-labelledby="h-bm">
+      <div class="card-head">
+        <h2 id="h-bm">Bookmarklets</h2>
+        <p class="lead">Paste the code and give it a name. Optionally record a keyboard shortcut to run it on any page. You can also show it in the radial.</p>
+      </div>
+      <div id="bmEditor"></div>
     </section>
 
     <section class="card" aria-labelledby="h-tpl">
@@ -182,7 +179,8 @@
         <input type="text" id="removeQueueName" spellcheck="false" placeholder="eMobility Support Queue">
       </div>
     </section>
-
+    </div>
+    <div class="col">
     <section class="card" aria-labelledby="h-rc">
       <div class="card-head">
         <h2 id="h-rc"><label class="h2-check" title="Adds an Insert RC button next to To in email drafts. It reads the country code from the title and adds the contact's email from your list (once). Uses the sites of the templates card."><input type="checkbox" id="rcBtn"><span>Insert RC button</span></label></h2>
