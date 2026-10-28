@@ -14,7 +14,7 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
-  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, removeQueueName: 'eMobility Support Queue' };
+  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplMax: 8, removeQueueName: 'eMobility Support Queue' };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => {
     const h = hostKey();
@@ -174,6 +174,26 @@
     .err{color:#c4314b;opacity:1}
     .dbg{border:0;background:none;color:#0078d4;cursor:pointer;font-size:12px;padding:0;text-decoration:underline}
     .busy .it{opacity:.5;pointer-events:none}`;
+  // Histórico acumulado: cada template visto em "Recently used" ou aplicado pelo cartão fica guardado,
+  // com a contagem de usos. O cartão mostra os mais usados (depois os mais recentes), até o máximo escolhido.
+  let hist = [];
+  const maxShown = () => Math.min(30, Math.max(1, parseInt(settings.emailTplMax, 10) || 8));
+  const rank = () => [...hist].sort((a, b) => (b.count - a.count) || (b.last - a.last)).slice(0, maxShown());
+  const saveHist = () => chrome.storage.local.set({ [STORE_KEY]: { items: hist.slice(0, 80), t: Date.now() } });
+  function seen(list) {
+    const now = Date.now();
+    list.forEach((it, i) => {
+      let e = hist.find((h) => h.name === it.name);
+      if (!e) hist.push((e = { name: it.name, type: it.type, count: 0, last: 0 }));
+      e.type = it.type || e.type;
+      e.last = Math.max(e.last, now - i * 1000);   // o 1º da lista do Dynamics é o mais recente
+    });
+  }
+  function used(it) {
+    let e = hist.find((h) => h.name === it.name);
+    if (!e) hist.push((e = { name: it.name, type: it.type, count: 0, last: 0 }));
+    e.count++; e.last = Date.now();
+  }
   let host = null, root = null, items = [], status = '', lastErr = null, working = false;
 
   function render() {
@@ -216,8 +236,11 @@
     try {
       const list = await readRecent();
       if (list) {
-        items = list.slice(0, 8);
-        await chrome.storage.local.set({ [STORE_KEY]: { items, t: Date.now() } });
+        seen(list);
+        hist.sort((a, b) => (b.count - a.count) || (b.last - a.last));
+        hist = hist.slice(0, 80);
+        items = rank();
+        await saveHist();
       }
       status = '';
     } catch (e) { lastErr = e; status = ''; console.warn('Radial: templates', e); }
@@ -288,10 +311,9 @@
     working = true; status = tr('Applying…'); lastErr = null; render();
     try {
       await applyTemplate(it.name);
+      used(it); items = rank(); await saveHist();
       if (RC_TEMPLATE.test(it.name)) await fillRC();
       if (TS_TEMPLATE.test(it.name)) await dropTroubleshooting();
-      items = [it, ...items.filter((x) => x.name !== it.name)];
-      await chrome.storage.local.set({ [STORE_KEY]: { items, t: Date.now() } });
       status = '';
     } catch (e) { lastErr = e; status = ''; console.warn('Radial: templates', e); }
     working = false; render();
@@ -342,7 +364,7 @@
     if (!loadedCache) {
       loadedCache = true;
       const c = (await chrome.storage.local.get(STORE_KEY))[STORE_KEY];
-      if (c && Array.isArray(c.items)) { items = c.items; render(); }
+      if (c && Array.isArray(c.items)) { hist = c.items.map((x) => ({ name: x.name, type: x.type || '', count: x.count || 0, last: x.last || 0 })); items = rank(); render(); }
       if (!c || Date.now() - c.t > CACHE_MS) setTimeout(() => refresh(false), 1500);
     }
   }
@@ -352,7 +374,7 @@
     try {
       const r = await chrome.storage.sync.get('settings');
       settings = { ...settings, ...(r.settings || {}) };
-      chrome.storage.onChanged.addListener((ch, area) => { if (area === 'sync' && ch.settings) settings = { ...settings, ...(ch.settings.newValue || {}) }; });
+      chrome.storage.onChanged.addListener((ch, area) => { if (area === 'sync' && ch.settings) { settings = { ...settings, ...(ch.settings.newValue || {}) }; items = rank(); render(); } });
     } catch (_) { /* contexto invalidado */ }
     setInterval(() => { tick().catch(() => {}); }, 1000);
   }
