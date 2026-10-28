@@ -14,7 +14,7 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
-  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com' };
+  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, removeQueueName: 'eMobility Support Queue' };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => {
     const h = hostKey();
@@ -245,7 +245,29 @@
   };
 
   let loadedCache = false;
+  // Remove o destinatário indicado (padrão: a fila "eMobility Support Queue") do campo "To" de um rascunho novo.
+  // Roda uma vez por rascunho: se você adicionar de novo depois, ele não mexe.
+  const queueSeen = new WeakMap();
+  function dropQueue() {
+    if (!settings.removeQueue || !hostOk()) return;
+    const s = isEmailDraft();
+    if (!s) return;
+    let st = queueSeen.get(s);
+    if (!st) queueSeen.set(s, (st = { t0: Date.now(), done: false }));
+    if (st.done || Date.now() - st.t0 > 15000) return;
+    const want = norm(settings.removeQueueName).toLowerCase();
+    if (!want) return;
+    const tag = [...document.querySelectorAll('[data-id="to.fieldControl-LookupResultsDropdown_to_selected_tag"]')]
+      .find((t) => visible(t) && norm(t.getAttribute('title') || t.textContent).toLowerCase() === want);
+    if (!tag) return;
+    const del = tag.parentElement && tag.parentElement.querySelector('[data-id="to.fieldControl-LookupResultsDropdown_to_selected_tag_delete"]');
+    if (!del) return;
+    st.done = true;
+    realClick(del);
+  }
+
   async function tick() {
+    try { dropQueue(); } catch (_) { /* ignora */ }
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }

@@ -331,6 +331,11 @@ function row(name, badgeText, sub, muted) {
     const latest = (await chrome.storage.sync.get('settings')).settings || {};
     await chrome.storage.sync.set({ settings: { ...latest, emailTpl: $('pTpl').checked } });
   };
+  $('pRq').checked = !!cur.removeQueue;
+  $('pRq').onchange = async () => {
+    const latest = (await chrome.storage.sync.get('settings')).settings || {};
+    await chrome.storage.sync.set({ settings: { ...latest, removeQueue: $('pRq').checked } });
+  };
   $('pContent').oninput = () => { $('pContentOut').textContent = $('pContent').value + '%'; saveSizes(); };
 
   I.apply($('addCard'));
