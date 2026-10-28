@@ -1,5 +1,5 @@
 // Service worker: escuta o atalho, avisa o content script e executa as opções JavaScript.
-importScripts('store.js', 'i18n-labels.js', 'i18n-ui.js', 'i18n.js');
+importScripts('store.js', 'i18n-labels.js', 'i18n-ui.js', 'i18n.js', 'vendor/xlsx.mini.min.js', 'contacts.js');
 const t = (s, v) => RADIAL_I18N.t(s, v);
 
 const OPEN_MSG = { type: 'open-radial' };
@@ -239,6 +239,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Vindo do popup da extensão (sem aba): abre o radial na aba pedida.
   const fromPopup = !!sender.url && sender.url.startsWith(chrome.runtime.getURL('popup.html'));
+  const fromOptions = !!sender.url && sender.url.startsWith(chrome.runtime.getURL('options.html'));
   if (msg.type === 'open-radial-tab' && fromPopup && Number.isInteger(msg.tabId)) {
     openRadial({ id: msg.tabId }, { preview: !!msg.preview }).then(() => sendResponse({ ok: true }));
     return true;
@@ -252,6 +253,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'bookmarklet-data' && sender.tab && sender.frameId === 0 && typeof msg.detail === 'string' && msg.detail.length < 200000) {
     saveBookmarkletData(msg.detail).catch(() => {});
     return;
+  }
+
+  // Lista de contatos dos RCs. "Validate" (só da página de configurações) baixa e guarda a planilha.
+  if (msg.type === 'rc-validate' && fromOptions) {
+    RCContacts.refresh()
+      .then((rows) => {
+        const countries = new Set(rows.map((r) => r.country.toLowerCase()));
+        sendResponse({ ok: true, contacts: rows.length, countries: countries.size });
+      })
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
+    return true;
+  }
+  // O botão "Insert RC" do rascunho pede os contatos de um país (código de 2 letras).
+  if (msg.type === 'rc-find' && sender.tab && sender.frameId === 0 && typeof msg.code === 'string' && /^[A-Za-z]{2}$/.test(msg.code)) {
+    RCContacts.find(msg.code)
+      .then((r) => sendResponse({ ok: true, ...r }))
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
+    return true;
   }
 
   // Cartão de templates: troca "RC-XX" pelo código do país no editor do e-mail (CKEditor 5). O editor só

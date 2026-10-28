@@ -14,7 +14,7 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
-  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplKeep: 15, emailTplSee: 8, removeQueueName: 'eMobility Support Queue' };
+  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, rcBtn: false, emailTplKeep: 15, emailTplSee: 8, removeQueueName: 'eMobility Support Queue' };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => {
     const h = hostKey();
@@ -356,8 +356,96 @@
     realClick(del);
   }
 
+  // ---------- Botão "Insert RC" ao lado de "To" ----------
+  // Pega o país do título (".../FR-[..."), procura o contato na lista (planilha) e coloca o e-mail em "To".
+  const TO_INPUT = 'input[data-id="to.fieldControl-LookupResultsDropdown_to_textInputBox_with_filter_new"]';
+  const TO_TAG = '[data-id="to.fieldControl-LookupResultsDropdown_to_selected_tag"]';
+  let rcHost = null, rcBusy = false, toastHost = null;
+
+  function toast(lines, isErr) {
+    if (toastHost) toastHost.remove();
+    toastHost = document.createElement('div');
+    const r = toastHost.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = `.t{position:fixed;top:72px;right:24px;z-index:2147483000;max-width:420px;background:#fff;color:#222;border:1px solid #d1d1d1;border-left:5px solid ${isErr ? '#c4314b' : '#0078d4'};border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:12px 36px 12px 14px;font:13px/1.45 "Segoe UI",system-ui,sans-serif}
+      .t b{display:block;font-weight:600}.t p{margin:6px 0 0;white-space:pre-wrap}.x{position:absolute;top:6px;right:8px;border:0;background:none;font-size:18px;cursor:pointer;color:#555}
+      @media(prefers-color-scheme:dark){.t{background:#292929;color:#eee;border-color:#555}.x{color:#bbb}}`;
+    const box = document.createElement('div'); box.className = 't'; box.setAttribute('role', 'alert');
+    lines.forEach((l, i) => { const e = document.createElement(i === 0 ? 'b' : 'p'); e.textContent = l; box.appendChild(e); });
+    const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '×'; x.onclick = () => toastHost.remove();
+    box.appendChild(x); r.append(st, box); document.body.appendChild(toastHost);
+  }
+
+  const nativeSet = (el, v) => Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+  function key(el, k, code) {
+    ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t, { key: k, code, keyCode: code === 'Enter' ? 13 : 0, which: code === 'Enter' ? 13 : 0, bubbles: true, cancelable: true })));
+  }
+  const tagTexts = () => [...document.querySelectorAll(TO_TAG)].map((t) => norm(t.getAttribute('title') || t.textContent).toLowerCase());
+  // Já está no campo? Compara o e-mail ou o nome do contato com os destinatários.
+  const hasRecipient = (c) => tagTexts().some((t) => t.includes(c.email.toLowerCase()) || (c.name && t === norm(c.name).toLowerCase()));
+
+  async function addRecipient(email) {
+    const input = document.querySelector(TO_INPUT);
+    if (!input) throw new StepError('To box');
+    const want = email.toLowerCase();
+    const added = () => tagTexts().some((t) => t.includes(want));
+    input.focus(); realClick(input);
+    nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
+    nativeSet(input, email); input.dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(700);
+    key(input, 'Enter', 'Enter');
+    if (await waitFor(added, 3000)) return true;
+    nativeSet(input, email + ';'); input.dispatchEvent(new Event('input', { bubbles: true }));
+    key(input, ';', 'Semicolon');
+    if (await waitFor(added, 3000)) return true;
+    input.dispatchEvent(new Event('blur', { bubbles: true })); input.blur();
+    return !!(await waitFor(added, 3000));
+  }
+
+  async function insertRC() {
+    if (rcBusy) return;
+    rcBusy = true;
+    const btn = rcHost && rcHost.shadowRoot.querySelector('button');
+    if (btn) btn.disabled = true;
+    try {
+      const code = countryCode();
+      if (!code) return toast([tr('Insert RC'), tr('Could not find the country code in the email title.')], true);
+      const res = await chrome.runtime.sendMessage({ type: 'rc-find', code });
+      if (!res || !res.ok) return toast([tr('Insert RC'), (res && res.error) || tr('Could not read the list.')], true);
+      if (!res.rows.length) return toast([tr('Insert RC'), tr('No contact for {code} in the list.', { code })], true);
+      const done = [], failed = [];
+      for (const c of res.rows) {
+        if (hasRecipient(c)) continue;                 // já está: não faz nada
+        (await addRecipient(c.email).catch(() => false) ? done : failed).push(c);
+      }
+      const notes = done.filter((c) => c.comment).map((c) => (c.name ? c.name + ' (' + c.email + '): ' : '') + c.comment);
+      if (failed.length) toast([tr('Insert RC'), tr('Could not add: {list}', { list: failed.map((c) => c.email).join(', ') })].concat(notes), true);
+      else if (notes.length) toast([tr('Comment'), ...notes]);
+    } finally {
+      rcBusy = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function rcTick() {
+    const on = settings.rcBtn && hostOk() && isEmailDraft();
+    if (!on) { if (rcHost) { rcHost.remove(); rcHost = null; } return; }
+    const label = document.querySelector('label[id$="-to-field-label"]');
+    if (!label || !label.parentElement) return;
+    if (rcHost && rcHost.isConnected && rcHost.previousElementSibling === label) return;
+    if (rcHost) rcHost.remove();
+    rcHost = document.createElement('div');
+    const r = rcHost.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = ':host{display:block;margin-top:6px}button{font:600 12px "Segoe UI",system-ui,sans-serif;padding:4px 12px;border:1px solid #0078d4;border-radius:4px;background:#0078d4;color:#fff;cursor:pointer}button:hover{filter:brightness(1.1)}button:disabled{opacity:.6;cursor:default}';
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Insert RC'); b.onclick = () => insertRC();
+    r.append(st, b);
+    label.insertAdjacentElement('afterend', rcHost);
+  }
+
   async function tick() {
     try { dropQueue(); } catch (_) { /* ignora */ }
+    try { rcTick(); } catch (_) { /* ignora */ }
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }
