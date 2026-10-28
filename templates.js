@@ -224,11 +224,55 @@
     working = false; render();
   }
 
+  // "eMob - Case Handover RC NEW": troca "RC-XX" no corpo pelo código de 2 letras do título (".../AT-[...").
+  const RC_TEMPLATE = /^eMob - Case Handover RC NEW$/i;
+  function countryCode() {
+    for (const h of document.querySelectorAll('[data-id="header_title"], h1[id^="formHeaderTitle"]')) {
+      const m = /\/([A-Za-z]{2})-\[/.exec(h.getAttribute('title') || h.textContent || '');
+      if (m && visible(h)) return m[1].toUpperCase();
+    }
+    return null;
+  }
+  function editorDocs() {
+    const docs = [document];
+    document.querySelectorAll('iframe').forEach((f) => { try { if (f.contentDocument && f.contentDocument.body) docs.push(f.contentDocument); } catch (_) { /* outro domínio */ } });
+    return docs;
+  }
+  // Seleciona só o "XX" de cada "RC-XX" e digita o código por cima (o editor do e-mail aceita digitação, não edição direta do DOM).
+  function replaceXX(code) {
+    let n = 0;
+    for (const doc of editorDocs()) {
+      const roots = doc === document ? [...doc.querySelectorAll('[contenteditable="true"]')] : [doc.body];
+      for (const root of roots) {
+        for (let guard = 0; guard < 20; guard++) {
+          const w = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          let hit = null, idx = -1;
+          for (let t = w.nextNode(); t; t = w.nextNode()) { idx = t.nodeValue.search(/RC-XX(?![A-Za-z])/); if (idx >= 0) { hit = t; break; } }
+          if (!hit) break;
+          if (doc === document && root.focus) root.focus({ preventScroll: true });
+          const r = doc.createRange(); r.setStart(hit, idx + 3); r.setEnd(hit, idx + 5);
+          const sel = (doc.defaultView || window).getSelection(); sel.removeAllRanges(); sel.addRange(r);
+          if (!doc.execCommand('insertText', false, code)) break;
+          n++;
+        }
+      }
+    }
+    return n;
+  }
+  async function fillRC() {
+    const code = countryCode();
+    if (!code) throw new StepError('country code in the title');
+    const done = await waitFor(() => replaceXX(code) > 0, 10000, 500);
+    if (!done) throw new StepError('"RC-XX" in the email body');
+    return code;
+  }
+
   async function apply(it) {
     if (working) return;
     working = true; status = tr('Applying…'); lastErr = null; render();
     try {
       await applyTemplate(it.name);
+      if (RC_TEMPLATE.test(it.name)) await fillRC();
       items = [it, ...items.filter((x) => x.name !== it.name)];
       await chrome.storage.local.set({ [STORE_KEY]: { items, t: Date.now() } });
       status = '';
