@@ -366,6 +366,7 @@
       host = document.createElement('div');
       root = host.attachShadow({ mode: 'open' });
       s.insertAdjacentElement('afterend', host);
+      loadedCache = false;   // rascunho novo: confere de novo se a lista está velha
       render();
     }
     if (!loadedCache) {
