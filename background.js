@@ -254,6 +254,40 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
 
+  // Cartão de templates: troca "RC-XX" pelo código do país no editor do e-mail (CKEditor 5). O editor só
+  // aceita mudanças pelo modelo dele, que fica acessível no mundo da página (element.ckeditorInstance).
+  if (msg.type === 'tpl-fix-rc' && sender.tab && sender.frameId === 0 && typeof msg.code === 'string' && /^[A-Z]{2}$/.test(msg.code)) {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      world: 'MAIN',
+      args: [msg.code],
+      func: (code) => {
+        let total = 0;
+        document.querySelectorAll('.ck-editor__editable').forEach((el) => {
+          const ed = el.ckeditorInstance;
+          if (!ed || !ed.model) return;
+          ed.model.change((w) => {
+            const hits = [];
+            for (const item of w.createRangeIn(ed.model.document.getRoot()).getItems()) {
+              if (!item.is('$textProxy')) continue;
+              const re = /RC-XX(?![A-Za-z])/g; let m;
+              while ((m = re.exec(item.data))) hits.push({ item, at: m.index + 3 });
+            }
+            hits.reverse().forEach(({ item, at }) => {
+              const start = w.createPositionAt(item.parent, item.startOffset + at);
+              const attrs = Object.fromEntries(item.getAttributes());
+              w.remove(w.createRange(start, w.createPositionAt(item.parent, item.startOffset + at + 2)));
+              w.insertText(code, attrs, start);
+              total++;
+            });
+          });
+        });
+        return total;
+      },
+    }).then((r) => sendResponse({ n: (r && r[0] && r[0].result) || 0 })).catch(() => sendResponse({ n: 0 }));
+    return true;
+  }
+
   // Vindo do content script (só o frame principal de uma aba): executa uma opção JavaScript.
   if (msg.type === 'run-option' && sender.tab && sender.frameId === 0 && typeof msg.id === 'string') {
     // O código nunca trafega pelo content script: é lido aqui, do armazenamento.

@@ -262,8 +262,13 @@
   async function fillRC() {
     const code = countryCode();
     if (!code) throw new StepError('country code in the title');
-    const done = await waitFor(() => replaceXX(code) > 0, 10000, 500);
-    if (!done) throw new StepError('"RC-XX" in the email body');
+    let n = 0, t0 = Date.now();
+    while (!n && Date.now() - t0 < 10000) {
+      try { n = ((await chrome.runtime.sendMessage({ type: 'tpl-fix-rc', code })) || {}).n || 0; } catch (_) { /* ignora */ }
+      if (!n) n = replaceXX(code);   // plano B: digita por cima (editores comuns)
+      if (!n) await sleep(500);
+    }
+    if (!n) throw new StepError('"RC-XX" in the email body');
     return code;
   }
 
