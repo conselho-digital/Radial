@@ -317,6 +317,7 @@
     if (working) return;
     working = true; status = tr('Applying…'); lastErr = null; render();
     try {
+      try { await chrome.runtime.sendMessage({ type: 'tpl-clear-top' }); } catch (_) { /* segue sem limpar */ }
       await applyTemplate(it.name);
       used(it); items = rank(); await saveHist();
       if (RC_TEMPLATE.test(it.name)) await fillRC();
@@ -471,7 +472,7 @@
     rcHost = document.createElement('div');
     const r = rcHost.attachShadow({ mode: 'open' });
     const st = document.createElement('style');
-    st.textContent = ':host{display:block;margin-top:6px}button{font:400 14px "Segoe UI",system-ui,sans-serif;white-space:nowrap;min-width:104px;padding:6px 20px;border:1px solid #8a8886;border-radius:4px;background:#f3f2f1;color:#242424;cursor:pointer}button:hover{background:#e1dfdd}button:disabled{opacity:.6;cursor:default}@media(prefers-color-scheme:dark){button{background:#3b3b3b;color:#f0f0f0;border-color:#666}button:hover{background:#4a4a4a}}';
+    st.textContent = ':host{display:block;margin-top:6px}button{font:400 14px "Segoe UI",system-ui,sans-serif;white-space:nowrap;min-width:104px;padding:6px 20px;border:1px solid #8a8886;border-radius:4px;background:#f0f0f0;color:#242424;cursor:pointer}button:hover{background:#e1e1e1}button:disabled{opacity:.6;cursor:default}';
     const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Insert RC'); b.onclick = () => insertRC();
     r.append(st, b);
     label.insertAdjacentElement('afterend', rcHost);

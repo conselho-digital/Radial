@@ -307,6 +307,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Antes de aplicar um template: apaga tudo no corpo do e-mail que está acima da linha "--- Original Message ---"
+  // e deixa um parágrafo vazio no topo com o cursor. Sem essa linha, não mexe em nada.
+  if (msg.type === 'tpl-clear-top' && sender.tab && sender.frameId === 0) {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      world: 'MAIN',
+      func: () => {
+        let total = 0;
+        document.querySelectorAll('.ck-editor__editable').forEach((el) => {
+          const ed = el.ckeditorInstance;
+          if (!ed || !ed.model) return;
+          ed.model.change((w) => {
+            const root = ed.model.document.getRoot();
+            let mark = null;
+            for (const item of w.createRangeIn(root).getItems()) {
+              if (item.is('$textProxy') && /-{5,}\s*Original Message\s*-{5,}/i.test(item.data)) { mark = item; break; }
+            }
+            if (!mark) return;
+            const block = mark.parent;
+            const before = w.createRange(w.createPositionAt(root, 0), w.createPositionBefore(block));
+            if (!before.isCollapsed) w.remove(before);
+            const para = w.createElement('paragraph');
+            w.insert(para, w.createPositionAt(root, 0));
+            w.setSelection(para, 'in');
+            total++;
+          });
+        });
+        return total;
+      },
+    }).then((r) => sendResponse({ n: (r && r[0] && r[0].result) || 0 })).catch(() => sendResponse({ n: 0 }));
+    return true;
+  }
+
   // Cartão de templates: apaga o item de lista vazio "Troubleshooting:" que alguns templates deixam no corpo.
   if (msg.type === 'tpl-drop-ts' && sender.tab && sender.frameId === 0) {
     chrome.scripting.executeScript({
