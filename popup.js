@@ -326,6 +326,11 @@ function row(name, badgeText, sub, muted) {
     }, 120);
   };
   $('pSize').oninput = () => { $('pSizeOut').textContent = $('pSize').value + ' px'; saveSizes(); };
+  $('pTpl').checked = !!cur.emailTpl;
+  $('pTpl').onchange = async () => {
+    const latest = (await chrome.storage.sync.get('settings')).settings || {};
+    await chrome.storage.sync.set({ settings: { ...latest, emailTpl: $('pTpl').checked } });
+  };
   $('pContent').oninput = () => { $('pContentOut').textContent = $('pContent').value + '%'; saveSizes(); };
 
   I.apply($('addCard'));
