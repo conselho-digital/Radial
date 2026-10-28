@@ -109,7 +109,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplMax: 8, emailTplShow: 5, removeQueueName: 'eMobility Support Queue' };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplKeep: 15, emailTplSee: 8, removeQueueName: 'eMobility Support Queue' };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -140,8 +140,8 @@ function showCfg() {
   $('sticky').checked = !!cfg.sticky;
   $('autoDnd').checked = !!cfg.autoDnd;
   $('emailTpl').checked = !!cfg.emailTpl;
-  if (document.activeElement !== $('emailTplMax')) $('emailTplMax').value = cfg.emailTplMax || 8;
-  if (document.activeElement !== $('emailTplShow')) $('emailTplShow').value = cfg.emailTplShow || 5;
+  if (document.activeElement !== $('emailTplKeep')) $('emailTplKeep').value = cfg.emailTplKeep || 15;
+  if (document.activeElement !== $('emailTplSee')) $('emailTplSee').value = cfg.emailTplSee || 8;
   $('removeQueue').checked = !!cfg.removeQueue;
   if (document.activeElement !== $('removeQueueName')) $('removeQueueName').value = cfg.removeQueueName || '';
   if (document.activeElement !== $('emailTplHosts')) $('emailTplHosts').value = String(cfg.emailTplHosts || '').split(/[\s,;]+/).filter(Boolean).join('\n');
@@ -179,8 +179,8 @@ $('contentScale').onchange = () => { cfg.contentScale = (Number($('contentScale'
 $('autoDnd').onchange = () => { cfg.autoDnd = $('autoDnd').checked; saveCfg(); };
 $('removeQueue').onchange = () => { cfg.removeQueue = $('removeQueue').checked; saveCfg(); };
 $('removeQueueName').onchange = () => { cfg.removeQueueName = $('removeQueueName').value.trim(); saveCfg(); };
-$('emailTplShow').onchange = () => { cfg.emailTplShow = Math.min(30, Math.max(1, parseInt($('emailTplShow').value, 10) || 5)); showCfg(); saveCfg(); };
-$('emailTplMax').onchange = () => { cfg.emailTplMax = Math.min(30, Math.max(1, parseInt($('emailTplMax').value, 10) || 8)); showCfg(); saveCfg(); };
+$('emailTplSee').onchange = () => { cfg.emailTplSee = Math.min(30, Math.max(1, parseInt($('emailTplSee').value, 10) || 8)); showCfg(); saveCfg(); };
+$('emailTplKeep').onchange = () => { cfg.emailTplKeep = Math.min(30, Math.max(1, parseInt($('emailTplKeep').value, 10) || 15)); showCfg(); saveCfg(); };
 $('emailTpl').onchange = () => { cfg.emailTpl = $('emailTpl').checked; saveCfg(); };
 $('emailTplHosts').onchange = () => { cfg.emailTplHosts = $('emailTplHosts').value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean).join(' '); showCfg(); saveCfg(); };
 $('autoDndHosts').onchange = () => { cfg.autoDndHosts = $('autoDndHosts').value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean).join(' '); showCfg(); saveCfg(); };

@@ -14,7 +14,7 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
-  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplMax: 8, emailTplShow: 5, removeQueueName: 'eMobility Support Queue' };
+  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, emailTplKeep: 15, emailTplSee: 8, removeQueueName: 'eMobility Support Queue' };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => {
     const h = hostKey();
@@ -178,8 +178,8 @@
   // Histórico: guarda os últimos templates vistos em "Recently used" ou aplicados pelo cartão (o mais recente primeiro).
   // O cartão mostra os primeiros e o resto aparece rolando a lista.
   let hist = [];
-  const maxShown = () => Math.min(30, Math.max(1, parseInt(settings.emailTplMax, 10) || 8));
-  const showCount = () => Math.min(30, Math.max(1, parseInt(settings.emailTplShow, 10) || 5));
+  const maxShown = () => Math.min(30, Math.max(1, parseInt(settings.emailTplKeep, 10) || 15));
+  const showCount = () => Math.min(30, Math.max(1, parseInt(settings.emailTplSee, 10) || 8));
   const rank = () => [...hist].sort((a, b) => b.last - a.last).slice(0, maxShown());
   const saveHist = () => chrome.storage.local.set({ [STORE_KEY]: { items: hist.slice(0, 80), t: Date.now() } });
   function seen(list) {
