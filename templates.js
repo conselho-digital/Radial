@@ -82,7 +82,8 @@
 
     const sel = tplDialog() ? null : selDialog();
     if (sel) {
-      const field = sel.querySelector('button[data-id="fieldname_id.fieldControl-option-set-select"], [role="combobox"]');
+      const fieldSel = 'button[data-id="fieldname_id.fieldControl-option-set-select"]';
+      const field = await waitFor(() => [...document.querySelectorAll(fieldSel)].find(visible), 8000);
       if (!field) throw new StepError('Field Name dropdown');
       if (!/regarding/i.test(field.value || field.title || field.textContent)) {
         realClick(field);
@@ -91,7 +92,7 @@
         realClick(opt);
         await sleep(300);
       }
-      const select = await waitFor(() => { const b = findClickable(sel, /^select$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 6000);
+      const select = await waitFor(() => { const b = findClickable(selDialog() || document, /^select$/i); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true' ? b : null; }, 6000);
       if (!select) throw new StepError('Select button');
       realClick(select);
     }
