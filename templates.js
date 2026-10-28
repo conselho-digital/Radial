@@ -400,6 +400,15 @@
     nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
     key(input, 'Escape', 'Escape');
   }
+  // O Dynamics às vezes devolve o texto digitado e reabre a lista depois que o contato já entrou:
+  // espera um pouco, limpa o campo e tira o foco para fechar a lista.
+  async function settle(input) {
+    await sleep(1500);
+    clearInput(input);
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    input.blur();
+    await sleep(300);
+  }
 
   // Uma única tentativa por contato: busca pelo e-mail; se não achar registro, busca pelo nome.
   // Só vale se aparecer um destinatário novo que seja a pessoa (nome ou e-mail); se vier outra pessoa, desfaz.
@@ -414,12 +423,12 @@
       key(input, 'Enter', 'Enter');
       if (await waitFor(() => tagEls().length > before, 3000)) {
         const fresh = tagEls().slice(before).map((t) => norm(t.getAttribute('title') || t.textContent).toLowerCase());
-        if (fresh.some((t) => t.includes(c.email.toLowerCase()) || (nm && t.includes(nm)))) return true;
+        if (fresh.some((t) => t.includes(c.email.toLowerCase()) || (nm && t.includes(nm)))) { await settle(input); return true; }
         tagEls().slice(before).forEach((t) => { const d = t.parentElement && t.parentElement.querySelector('[data-id$="_selected_tag_delete"]'); if (d) realClick(d); });
         await sleep(300);
       }
     }
-    clearInput(input);
+    await settle(input);
     return false;
   }
 
