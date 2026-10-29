@@ -57,16 +57,36 @@
   }
   const rangeMs = () => Math.abs(dateValue(/Date To/i) - dateValue(/Date From/i));
 
+  const applyBtn = () => [...document.querySelectorAll('button')].find((x) => norm(x.textContent) === 'Apply' && x.offsetParent !== null);
+
+  // Apply do usuário: acima de 1h roda o 📥; se ele não existir, o Apply normal.
+  async function applyFromUser(b) {
+    if (!(rangeMs() > 3600000)) { b.click(); return; }
+    let res = null;
+    try { res = await chrome.runtime.sendMessage({ type: 'run-option', id: 'def_6' }); } catch (_) { /* extensão recarregada */ }
+    if (!res || !res.ok) b.click();
+  }
+
   // Só o clique do usuário (isTrusted) é desviado; os cliques que o próprio 📥 dá no Apply passam direto.
-  document.addEventListener('click', async (e) => {
+  document.addEventListener('click', (e) => {
     if (!isLogs() || !e.isTrusted) return;
     const b = e.target.closest && e.target.closest('button');
     if (!b || norm(b.textContent) !== 'Apply' || !(rangeMs() > 3600000)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    let res = null;
-    try { res = await chrome.runtime.sendMessage({ type: 'run-option', id: 'def_6' }); } catch (_) { /* extensão recarregada */ }
-    if (!res || !res.ok) b.click();   // bookmarklet 📥 não encontrado: Apply normal
+    applyFromUser(b);
+  }, true);
+
+  // Enter aciona o Apply (menos em botões, links, textos longos e listas abertas).
+  document.addEventListener('keydown', (e) => {
+    if (!isLogs() || !e.isTrusted || e.key !== 'Enter' || e.isComposing || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+    const t = e.target;
+    if (t.closest && t.closest('button, a, textarea, [role="option"], [role="listbox"], [role="menu"], .v-menu__content, .v-list')) return;
+    if (document.querySelector('.menuable__content__active')) return;
+    const b = applyBtn();
+    if (!b) return;
+    e.preventDefault();
+    applyFromUser(b);
   }, true);
 
   setInterval(() => {
