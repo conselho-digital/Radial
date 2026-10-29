@@ -575,7 +575,7 @@
       realClick(tabM);
       const input = await waitFor(() => qv(TITLE_SEL), 6000);
       if (!input) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
-      openTicketDialog({ id, cc, charger: ch, serial, dev, fam: fam || '', rest: (() => { const i = input.value.lastIndexOf(']'); return i >= 0 ? input.value.slice(i + 1).trim() : ''; })() });
+      openTicketDialog({ id, cc, charger: ch, serial, dev, fam: fam || '', rest: (() => { const i = input.value.lastIndexOf(']'); return i >= 0 ? input.value.slice(i + 1).trim() : norm(input.value); })() });
     } catch (e) {
       console.warn('Radial: ticket', e);
       toast([tr('Ticket'), String(e && e.message || e)], true);
