@@ -497,12 +497,13 @@
     if (/ac\s*22/.test(n)) return pick('AC22');
     if (/versicharge|vc3/.test(n)) return pick('VC3');
     if (/si-?charge\s*d\b|si-d\b/.test(n)) return pick('SI-D');
+    if (/\brc\b/.test(n)) return pick('RC');
     if (/flex/.test(n)) return pick('FLEX');
     if (/rapid/.test(n)) return pick('RAPID');
     if (/mobile/.test(n)) return pick('MOBILE');
     if (/legacy|\bleg\b/.test(n)) return pick('LEG');
-    if (/\brc\b/.test(n)) return pick('RC');
-    return pick('other');
+    if (/unity/.test(n)) return pick('other');
+    return null;   // família desconhecida: a janela pergunta
   }
   const fold = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/&/g, 'and').replace(/[’`]/g, "'").replace(/\s+/g, ' ').trim();
   let cmap = null;
@@ -561,7 +562,7 @@
       const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
       const serial = await waitFor(assetSerial, 3500) || '';
       const ch = detectCharger(fam);
-      const dev = ch.key === 'SI-D' ? (await waitFor(deviceId, 4000)) || '' : '';
+      const dev = (!ch || ch.key === 'SI-D') ? (await waitFor(deviceId, 4000)) || '' : '';
       realClick(tabM);
       const input = await waitFor(() => qv(TITLE_SEL), 6000);
       if (!input) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
@@ -583,6 +584,8 @@
       .row{display:flex;gap:10px}.row>div{flex:1}input,select{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #8a8886;border-radius:4px;font:inherit;background:#fff;color:#242424}
       .pre{font:13px Consolas,monospace;background:#f3f2f1;border-radius:4px;padding:6px 8px;word-break:break-all}.note{font-size:12px;color:#555;margin-top:8px}
       .act{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}button{font:inherit;padding:6px 20px;border-radius:4px;border:1px solid #8a8886;background:#f0f0f0;color:#242424;cursor:pointer}
+      .grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+      [hidden]{display:none!important}
       button.p{background:#0f6cbd;border-color:#0f6cbd;color:#fff}
       @media(prefers-color-scheme:dark){.box{background:#292929;color:#eee}input,select{background:#1f1f1f;color:#eee;border-color:#666}.pre{background:#1f1f1f}label,.note{color:#bbb}button{background:#3a3a3a;color:#eee;border-color:#666}button.p{background:#0f6cbd}}`;
     const bg = document.createElement('div'); bg.className = 'bg';
@@ -593,18 +596,33 @@
     $('[data-k=ch]').textContent = tr('Charger'); $('[data-k=sn]').textContent = tr('Serial number');
     $('[data-k=pre]').textContent = tr('Title start'); $('[data-k=rest]').textContent = tr('Text after the serial number');
     CHARGERS.forEach((c) => { const o = document.createElement('option'); o.value = c.key; o.textContent = c.label; $('#ch').appendChild(o); });
-    $('#ch').value = d.charger.key; $('#sn').value = d.serial; $('#rest').value = d.rest;
+    $('#ch').value = d.charger ? d.charger.key : 'other'; $('#sn').value = d.serial; $('#rest').value = d.rest;
     $('#cn').textContent = tr('Cancel'); $('#ap').textContent = tr('Apply');
-    const cur = () => CHARGERS.find((c) => c.key === $('#ch').value) || d.charger;
+    const cur = () => CHARGERS.find((c) => c.key === $('#ch').value) || CHARGERS[CHARGERS.length - 1];
     const prefix = () => `ID${d.id}-${cur().area}/${cur().key}/${d.cc}-[${norm($('#sn').value) || 'NULL'}]`;
     const note = () => {
       const bits = [];
       if (d.fam) bits.push(tr('Product family: {name}', { name: d.fam }));
+      if (!norm($('#sn').value)) bits.push(tr('Serial number not found: type it above (empty becomes NULL).'));
       if (cur().key === 'SI-D') bits.push(d.dev ? tr('Device ID {id} will go into Charger ID.', { id: d.dev }) : tr('Device ID not found.'));
       $('#note').textContent = bits.join(' · ');
       $('#pre').textContent = prefix();
     };
     $('#ch').onchange = note; $('#sn').oninput = note; note();
+    // Família desconhecida: primeiro escolhe o carregador nos botões.
+    if (!d.charger) {
+      const form = [...box.children].filter((e) => !e.matches('h2'));
+      form.forEach((e) => { e.hidden = true; });
+      const pick = document.createElement('div');
+      pick.innerHTML = '<label></label><div class="grid"></div>';
+      pick.firstChild.textContent = tr('Product family not recognized{name}. Pick the charger:', { name: d.fam ? ' (' + d.fam + ')' : '' });
+      CHARGERS.forEach((c) => {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = c.label;
+        b.onclick = () => { $('#ch').value = c.key; pick.remove(); form.forEach((e) => { e.hidden = false; }); note(); $('#rest').focus(); };
+        pick.lastChild.appendChild(b);
+      });
+      box.insertBefore(pick, form[0]);
+    }
     const close = () => { ticketDlg.remove(); ticketDlg = null; };
     const apply = () => {
       const t = document.querySelector(TITLE_SEL);
@@ -621,22 +639,23 @@
     bg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') close(); else if (e.key === 'Enter' && e.target.id !== 'ch') { e.preventDefault(); apply(); } });
     bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
     bg.appendChild(box); r.append(st, bg); document.body.appendChild(ticketDlg);
-    setTimeout(() => $('#rest').focus(), 50);
+    setTimeout(() => (norm($('#sn').value) ? $('#rest') : $('#sn')).focus(), 50);
   }
 
   function ticketTick() {
-    const h1 = settings.ticketBtn !== false && hostOk() && qv('[data-id="header_title"]');
-    const on = h1 && qv('li[data-id="tablist-tabProduct"]');
+    const lab = settings.ticketBtn !== false && hostOk() && qv('div[title^="Case Title"] > label');
+    const on = lab && qv('li[data-id="tablist-tabProduct"]');
     if (!on) { if (ticketHost) { ticketHost.remove(); ticketHost = null; } return; }
-    if (ticketHost && ticketHost.isConnected && ticketHost.previousElementSibling === h1) return;
+    const wrap = lab.parentElement;
+    if (ticketHost && ticketHost.isConnected && ticketHost.parentElement === wrap) return;
     if (ticketHost) ticketHost.remove();
     ticketHost = document.createElement('div');
     const r = ticketHost.attachShadow({ mode: 'open' });
     const st = document.createElement('style');
-    st.textContent = ':host{display:inline-block;margin-left:12px;vertical-align:middle}button{font:400 13px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:4px 14px;border:1px solid #8a8886;border-radius:4px;background:#f0f0f0;color:#242424;cursor:pointer}button:hover{background:#e1e1e1}button:disabled{opacity:.6;cursor:default}';
+    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{font:400 12px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:2px 10px;border:1px solid #8a8886;border-radius:4px;background:#f0f0f0;color:#242424;cursor:pointer}button:hover{background:#e1e1e1}button:disabled{opacity:.6;cursor:default}';
     const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Ticket'); b.onclick = () => startTicket(b);
     r.append(st, b);
-    h1.insertAdjacentElement('afterend', ticketHost);
+    wrap.appendChild(ticketHost);
   }
 
   async function tick() {
