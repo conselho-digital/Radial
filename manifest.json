@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Radial",
-  "version": "1.17.1",
+  "version": "1.18.0",
   "description": "Contextual radial menu at the cursor: per-site actions, recorded shortcuts and your own bookmarklets.",
   "permissions": ["storage", "unlimitedStorage", "scripting", "tabs", "debugger"],
   "host_permissions": ["<all_urls>"],
@@ -12,6 +12,11 @@
     {
       "matches": ["<all_urls>"],
       "js": ["sites.js", "store.js", "i18n-labels.js", "i18n-ui.js", "i18n.js", "radial-css.js", "content.js", "templates.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://configuration.sicharge.technology/*"],
+      "js": ["sicharge.js"],
       "run_at": "document_idle"
     }
   ],
