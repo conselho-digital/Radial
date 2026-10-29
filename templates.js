@@ -264,7 +264,7 @@
     for (const h of document.querySelectorAll('[data-id="header_title"], h1[id^="formHeaderTitle"]')) {
       const m = /\/([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\/([A-Za-z]{2})-\[/.exec(h.getAttribute('title') || h.textContent || '');
       if (m && visible(h)) {
-        const raw = m[1].toUpperCase();
+        const raw = m[1].toUpperCase().replace(/^MOB$/, 'MOBILE');
         return { country: m[2].toUpperCase(), charger: KNOWN_CHARGERS.includes(raw) ? raw : 'OTHER', raw };
       }
     }
@@ -485,10 +485,10 @@
   // Com país: visita a aba Product (família do produto, serial do asset e Device ID), volta para Main e
   // abre uma janela com o resto do título para você editar; Apply grava o título e o Charger ID.
   const CHARGERS = [
-    { key: 'SI-D', area: 'DC', label: 'Sicharge D' }, { key: 'SI-UC', area: 'DC', label: 'SiCharge UC' },
-    { key: 'AC22', area: 'AC', label: 'Sicharge AC22' }, { key: 'VC3', area: 'AC', label: 'Versicharge' },
-    { key: 'RC', area: 'DC', label: 'RC' }, { key: 'FLEX', area: 'DC', label: 'Flex' }, { key: 'RAPID', area: 'DC', label: 'Rapid' },
-    { key: 'MOBILE', area: 'DC', label: 'Mobile' }, { key: 'LEG', area: 'DC', label: 'Legacy' }, { key: 'other', area: 'DC', label: 'Other' }
+    { key: 'SI-D', color: '#b3dbff', area: 'DC', label: 'Sicharge D' }, { key: 'SI-UC', color: '#b3f0b3', area: 'DC', label: 'SiCharge UC' },
+    { key: 'AC22', color: '#e8c4ff', area: 'AC', label: 'Sicharge AC22' }, { key: 'VC3', color: '#ffe3a6', area: 'AC', label: 'Versicharge' },
+    { key: 'RC', color: '#ffd1dc', area: 'DC', label: 'RC' }, { key: 'FLEX', color: '#d6d8d8', area: 'DC', label: 'Flex' }, { key: 'RAPID', color: '#bee5eb', area: 'DC', label: 'Rapid' },
+    { key: 'MOB', area: 'DC', label: 'Mobile', color: '#cce5ff' }, { key: 'LEG', color: '#e2e3e5', area: 'DC', label: 'Legacy' }, { key: 'other', color: '#ffccb3', area: 'DC', label: 'Other' }
   ];
   function detectCharger(name) {
     const n = String(name || '').toLowerCase();
@@ -500,7 +500,7 @@
     if (/\brc\b/.test(n)) return pick('RC');
     if (/flex/.test(n)) return pick('FLEX');
     if (/rapid/.test(n)) return pick('RAPID');
-    if (/mobile/.test(n)) return pick('MOBILE');
+    if (/mobile/.test(n)) return pick('MOB');
     if (/legacy|\bleg\b/.test(n)) return pick('LEG');
     if (/unity/.test(n)) return pick('other');
     return null;   // família desconhecida: a janela pergunta
@@ -540,6 +540,11 @@
       const n = h && [...h.childNodes].find((x) => x.nodeType === 3 && norm(x.nodeValue));
       if (n) return norm(n.nodeValue);
     }
+    for (const c of document.querySelectorAll('[col-id="sie_serialnumber"]')) {
+      const l = visible(c) && c.querySelector('label');
+      const v = l && norm(l.getAttribute('aria-label') || l.textContent);
+      if (v) return v;
+    }
     return '';
   }
   const deviceId = () => { const i = qv('input[aria-label="Device ID"]'); return i ? norm(i.value || i.getAttribute('title')) : ''; };
@@ -578,68 +583,92 @@
     ticketDlg = document.createElement('div');
     const r = ticketDlg.attachShadow({ mode: 'open' });
     const st = document.createElement('style');
-    st.textContent = `.bg{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font:14px/1.45 "Segoe UI",system-ui,sans-serif}
-      .box{width:min(640px,92vw);background:#fff;color:#242424;border-radius:8px;box-shadow:0 12px 48px rgba(0,0,0,.35);padding:18px 20px}
-      h2{margin:0 0 12px;font-size:16px}label{display:block;font-size:12px;font-weight:600;margin:10px 0 4px;color:#555}
-      .row{display:flex;gap:10px}.row>div{flex:1}input,select{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #8a8886;border-radius:4px;font:inherit;background:#fff;color:#242424}
-      .pre{font:13px Consolas,monospace;background:#f3f2f1;border-radius:4px;padding:6px 8px;word-break:break-all}.note{font-size:12px;color:#555;margin-top:8px}
-      .act{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}button{font:inherit;padding:6px 20px;border-radius:4px;border:1px solid #8a8886;background:#f0f0f0;color:#242424;cursor:pointer}
-      .grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-      [hidden]{display:none!important}
-      button.p{background:#0f6cbd;border-color:#0f6cbd;color:#fff}
-      @media(prefers-color-scheme:dark){.box{background:#292929;color:#eee}input,select{background:#1f1f1f;color:#eee;border-color:#666}.pre{background:#1f1f1f}label,.note{color:#bbb}button{background:#3a3a3a;color:#eee;border-color:#666}button.p{background:#0f6cbd}}`;
+    st.textContent = `.bg{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',Roboto,sans-serif;color:#333}
+      .box{width:min(580px,92vw);background:#f4f7f9;border-radius:8px;box-shadow:5px 5px 25px rgba(0,0,0,.4)}
+      .top{background:#005f6b;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;font-weight:bold;font-size:15px;letter-spacing:.5px;border-radius:8px 8px 0 0;user-select:none}
+      .x{cursor:pointer;font-size:26px;line-height:1;font-weight:normal;color:rgba(255,255,255,.7);background:none;border:0;padding:0}.x:hover{color:#fff}
+      .body{padding:18px}.lbl{font-size:13px;font-weight:bold;color:#005f6b;letter-spacing:.5px;text-transform:uppercase;margin:0 0 6px}
+      input{width:100%;padding:6px 12px;border:1px solid #005f6b;border-radius:5px;background:#fff;font:bold 14px 'Segoe UI',Roboto,sans-serif;height:34px;box-sizing:border-box;color:#333}
+      .pre{font:14px Consolas,monospace;padding:6px 10px;border:1px solid #ccc;border-radius:4px;min-height:30px;box-sizing:border-box;word-break:break-all;display:flex;align-items:center}
+      .gap{margin-top:14px}.note{font-size:11px;font-weight:600;color:#555;margin-top:8px}
+      .list{border:1px solid #005f6b;border-radius:5px;background:#fff;max-height:300px;overflow-y:auto}
+      .it{padding:8px 12px;cursor:pointer;font-size:14px;font-weight:bold;color:#333;background:#fff;border:0;width:100%;text-align:left;display:block;font-family:inherit}.it:hover{background:#005f6b;color:#fff}
+      .act{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+      .btn{background:#005f6b;color:#fff;border:none;border-radius:4px;padding:6px 18px;font:bold 13px 'Segoe UI',Roboto,sans-serif;cursor:pointer}.btn:hover{background:#004852}
+      .btn.g{background:#fff;color:#005f6b;border:1px solid #005f6b}.btn.g:hover{background:#e6f7f8}`;
     const bg = document.createElement('div'); bg.className = 'bg';
     const box = document.createElement('div'); box.className = 'box'; box.setAttribute('role', 'dialog');
-    box.innerHTML = '<h2></h2><div class="row"><div><label data-k="ch"></label><select id="ch"></select></div><div><label data-k="sn"></label><input id="sn" spellcheck="false"></div></div><label data-k="pre"></label><div class="pre" id="pre"></div><label data-k="rest"></label><input id="rest" spellcheck="false"><div class="note" id="note"></div><div class="act"><button type="button" id="cn"></button><button type="button" class="p" id="ap"></button></div>';
-    const $ = (q) => box.querySelector(q);
-    $('h2').textContent = tr('Ticket title');
-    $('[data-k=ch]').textContent = tr('Charger'); $('[data-k=sn]').textContent = tr('Serial number');
-    $('[data-k=pre]').textContent = tr('Title start'); $('[data-k=rest]').textContent = tr('Text after the serial number');
-    CHARGERS.forEach((c) => { const o = document.createElement('option'); o.value = c.key; o.textContent = c.label; $('#ch').appendChild(o); });
-    $('#ch').value = d.charger ? d.charger.key : 'other'; $('#sn').value = d.serial; $('#rest').value = d.rest;
-    $('#cn').textContent = tr('Cancel'); $('#ap').textContent = tr('Apply');
-    const cur = () => CHARGERS.find((c) => c.key === $('#ch').value) || CHARGERS[CHARGERS.length - 1];
-    const prefix = () => `ID${d.id}-${cur().area}/${cur().key}/${d.cc}-[${norm($('#sn').value) || 'NULL'}]`;
-    const note = () => {
+    box.innerHTML = '<div class="top"><span>Ticket Generator</span><button class="x" type="button" aria-label="Close">&times;</button></div><div class="body"></div>';
+    const body = box.querySelector('.body');
+    const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+    const close = () => { if (ticketDlg) ticketDlg.remove(); ticketDlg = null; };
+    box.querySelector('.x').onclick = close;
+    const prefix = () => `ID${d.id}-${d.charger.area}/${d.charger.key}/${d.cc}-[${norm(d.serial) || 'NULL'}]`;
+
+    // Uma pergunta por vez: só o que faltou (família do produto, serial); sem faltas, a tela final.
+    function step() {
+      body.textContent = '';
+      if (!d.charger) return askCharger();
+      if (!d.serial && !d.serialAsked) return askSerial();
+      return finalStep();
+    }
+    function askCharger() {
+      body.append(mk('div', 'lbl', tr('Product family not recognized{name}. Pick the charger:', { name: d.fam ? ' (' + d.fam + ')' : '' })));
+      const list = mk('div', 'list');
+      CHARGERS.forEach((c) => {
+        const b = mk('button', 'it', c.label); b.type = 'button';
+        b.onclick = () => { d.charger = c; if (c.key === 'SI-D' && !d.dev) d.dev = deviceId(); step(); };
+        list.appendChild(b);
+      });
+      body.appendChild(list);
+    }
+    function askSerial() {
+      body.append(mk('div', 'lbl', tr('Serial number not found')));
+      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the serial number');
+      body.appendChild(inp);
+      const act = mk('div', 'act');
+      const skip = mk('button', 'btn g', tr('Skip (NULL)')); skip.type = 'button';
+      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
+      const go = () => { d.serial = norm(inp.value); d.serialAsked = true; step(); };
+      skip.onclick = () => { d.serialAsked = true; d.serial = ''; finalStep(); };
+      ok.onclick = go;
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      act.append(skip, ok); body.appendChild(act);
+      setTimeout(() => inp.focus(), 30);
+    }
+    function finalStep() {
+      body.textContent = '';
+      body.append(mk('div', 'lbl', tr('Ticket title')));
+      const pre = mk('div', 'pre', prefix()); pre.style.background = d.charger.color || '#fff';
+      body.appendChild(pre);
       const bits = [];
       if (d.fam) bits.push(tr('Product family: {name}', { name: d.fam }));
-      if (!norm($('#sn').value)) bits.push(tr('Serial number not found: type it above (empty becomes NULL).'));
-      if (cur().key === 'SI-D') bits.push(d.dev ? tr('Device ID {id} will go into Charger ID.', { id: d.dev }) : tr('Device ID not found.'));
-      $('#note').textContent = bits.join(' · ');
-      $('#pre').textContent = prefix();
-    };
-    $('#ch').onchange = note; $('#sn').oninput = note; note();
-    // Família desconhecida: primeiro escolhe o carregador nos botões.
-    if (!d.charger) {
-      const form = [...box.children].filter((e) => !e.matches('h2'));
-      form.forEach((e) => { e.hidden = true; });
-      const pick = document.createElement('div');
-      pick.innerHTML = '<label></label><div class="grid"></div>';
-      pick.firstChild.textContent = tr('Product family not recognized{name}. Pick the charger:', { name: d.fam ? ' (' + d.fam + ')' : '' });
-      CHARGERS.forEach((c) => {
-        const b = document.createElement('button'); b.type = 'button'; b.textContent = c.label;
-        b.onclick = () => { $('#ch').value = c.key; pick.remove(); form.forEach((e) => { e.hidden = false; }); note(); $('#rest').focus(); };
-        pick.lastChild.appendChild(b);
-      });
-      box.insertBefore(pick, form[0]);
+      if (d.charger.key === 'SI-D') bits.push(d.dev ? tr('Device ID {id} will go into Charger ID.', { id: d.dev }) : tr('Device ID not found.'));
+      if (bits.length) body.appendChild(mk('div', 'note', bits.join(' · ')));
+      const l2 = mk('div', 'lbl gap', tr('Text after the serial number')); body.appendChild(l2);
+      const rest = mk('input'); rest.spellcheck = false; rest.value = d.rest; body.appendChild(rest);
+      const act = mk('div', 'act');
+      const cn = mk('button', 'btn g', tr('Cancel')); cn.type = 'button'; cn.onclick = close;
+      const ap = mk('button', 'btn', tr('Apply')); ap.type = 'button';
+      const apply = () => {
+        const t = document.querySelector(TITLE_SEL);
+        if (!t) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
+        typeInto(t, (prefix() + ' ' + norm(rest.value)).trim()); t.dispatchEvent(new Event('change', { bubbles: true }));
+        if (d.charger.key === 'SI-D' && d.dev) {
+          const c = document.querySelector('input[data-id="sie_chargerid.fieldControl-text-box-text"]');
+          if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
+        }
+        close();
+      };
+      ap.onclick = apply;
+      rest.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
+      act.append(cn, ap); body.appendChild(act);
+      setTimeout(() => rest.focus(), 30);
     }
-    const close = () => { ticketDlg.remove(); ticketDlg = null; };
-    const apply = () => {
-      const t = document.querySelector(TITLE_SEL);
-      if (!t) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
-      const full = (prefix() + ' ' + norm($('#rest').value)).trim();
-      typeInto(t, full); t.dispatchEvent(new Event('change', { bubbles: true }));
-      if (cur().key === 'SI-D' && d.dev) {
-        const c = document.querySelector('input[data-id="sie_chargerid.fieldControl-text-box-text"]');
-        if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
-      }
-      close();
-    };
-    $('#ap').onclick = apply; $('#cn').onclick = close;
-    bg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') close(); else if (e.key === 'Enter' && e.target.id !== 'ch') { e.preventDefault(); apply(); } });
+    bg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') close(); });
     bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
     bg.appendChild(box); r.append(st, bg); document.body.appendChild(ticketDlg);
-    setTimeout(() => (norm($('#sn').value) ? $('#rest') : $('#sn')).focus(), 50);
+    step();
   }
 
   function ticketTick() {
