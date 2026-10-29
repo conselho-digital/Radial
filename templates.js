@@ -540,10 +540,14 @@
       const n = h && [...h.childNodes].find((x) => x.nodeType === 3 && norm(x.nodeValue));
       if (n) return norm(n.nodeValue);
     }
-    for (const c of document.querySelectorAll('[col-id="sie_serialnumber"]')) {
-      const l = visible(c) && c.querySelector('label');
-      const v = l && norm(l.getAttribute('aria-label') || l.textContent);
-      if (v) return v;
+    // Tabela (ag-grid): o código muda com a resolução, então procura a célula com ou sem visibilidade confirmada.
+    const cells = [...document.querySelectorAll('[col-id="sie_serialnumber"]')];
+    for (const c of cells.filter(visible).concat(cells)) {
+      const l = c.querySelector('label');
+      const h = c.querySelector('.ms-TooltipHost');
+      const t = h && [...h.childNodes].find((x) => x.nodeType === 3 && norm(x.nodeValue));
+      const v = norm((l && l.getAttribute('aria-label')) || (t && t.nodeValue) || c.textContent);
+      if (v && !/^serial/i.test(v)) return v;
     }
     return '';
   }
@@ -565,7 +569,7 @@
       if (!tabP || !tabM) { toast([tr('Ticket'), tr('Product and Main tabs not found.')], true); return; }
       realClick(tabP);
       const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
-      const serial = await waitFor(assetSerial, 3500) || '';
+      const serial = await waitFor(assetSerial, 7000) || '';
       const ch = detectCharger(fam);
       const dev = (!ch || ch.key === 'SI-D') ? (await waitFor(deviceId, 4000)) || '' : '';
       realClick(tabM);
@@ -590,7 +594,7 @@
       .body{padding:18px}.lbl{font-size:13px;font-weight:bold;color:#005f6b;letter-spacing:.5px;text-transform:uppercase;margin:0 0 6px}
       input{width:100%;padding:6px 12px;border:1px solid #005f6b;border-radius:5px;background:#fff;font:bold 14px 'Segoe UI',Roboto,sans-serif;height:34px;box-sizing:border-box;color:#333}
       .pre{font:14px Consolas,monospace;padding:6px 10px;border:1px solid #ccc;border-radius:4px;min-height:30px;box-sizing:border-box;word-break:break-all;display:flex;align-items:center}
-      .gap{margin-top:14px}.note{font-size:11px;font-weight:600;color:#555;margin-top:8px}
+      .note{font-size:11px;font-weight:600;color:#555;margin:0 0 6px}.note.gap{margin-top:14px}
       .list{border:1px solid #005f6b;border-radius:5px;background:#fff;max-height:300px;overflow-y:auto}
       .it{padding:8px 12px;cursor:pointer;font-size:14px;font-weight:bold;color:#333;background:#fff;border:0;width:100%;text-align:left;display:block;font-family:inherit}.it:hover{background:#005f6b;color:#fff}
       .act{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
@@ -638,14 +642,9 @@
     }
     function finalStep() {
       body.textContent = '';
-      body.append(mk('div', 'lbl', tr('Ticket title')));
       const pre = mk('div', 'pre', prefix()); pre.style.background = d.charger.color || '#fff';
       body.appendChild(pre);
-      const bits = [];
-      if (d.fam) bits.push(tr('Product family: {name}', { name: d.fam }));
-      if (d.charger.key === 'SI-D') bits.push(d.dev ? tr('Device ID {id} will go into Charger ID.', { id: d.dev }) : tr('Device ID not found.'));
-      if (bits.length) body.appendChild(mk('div', 'note', bits.join(' · ')));
-      const l2 = mk('div', 'lbl gap', tr('Text after the serial number')); body.appendChild(l2);
+      const l2 = mk('div', 'note gap', tr('Ticket Title')); body.appendChild(l2);
       const rest = mk('input'); rest.spellcheck = false; rest.value = d.rest; body.appendChild(rest);
       const act = mk('div', 'act');
       const cn = mk('button', 'btn g', tr('Cancel')); cn.type = 'button'; cn.onclick = close;
