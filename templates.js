@@ -175,12 +175,14 @@
     .dbg{border:0;background:none;color:#0078d4;cursor:pointer;font-size:12px;padding:0;text-decoration:underline}
     .list{overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
     .busy .it{opacity:.5;pointer-events:none}`;
-  // Histórico: guarda os últimos templates vistos em "Recently used" ou aplicados pelo cartão (o mais recente primeiro).
-  // O cartão mostra os primeiros e o resto aparece rolando a lista.
+  // Histórico: guarda os últimos templates vistos em "Recently used" ou aplicados pelo cartão.
+  // O cartão mostra em ordem alfabética: os primeiros ficam visíveis e o resto aparece rolando a lista.
   let hist = [];
   const maxShown = () => Math.min(30, Math.max(1, parseInt(settings.emailTplKeep, 10) || 15));
   const showCount = () => Math.min(30, Math.max(1, parseInt(settings.emailTplSee, 10) || 8));
-  const rank = () => [...hist].sort((a, b) => b.last - a.last).slice(0, maxShown());
+  // Guarda os últimos N usados e mostra em ordem alfabética.
+  const rank = () => [...hist].sort((a, b) => b.last - a.last).slice(0, maxShown())
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
   let readAt = 0;   // última vez que a lista foi lida do Dynamics
   const saveHist = () => chrome.storage.local.set({ [STORE_KEY]: { items: hist.slice(0, 80), t: Date.now(), r: readAt } });
   function seen(list) {
