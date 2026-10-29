@@ -680,8 +680,8 @@
     ticketHost = document.createElement('div');
     const r = ticketHost.attachShadow({ mode: 'open' });
     const st = document.createElement('style');
-    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{font:400 12px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:2px 10px;border:1px solid #8a8886;border-radius:4px;background:#f0f0f0;color:#242424;cursor:pointer}button:hover{background:#e1e1e1}button:disabled{opacity:.6;cursor:default}';
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Ticket'); b.onclick = () => startTicket(b);
+    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{font:400 13px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:3px 10px;border:1px solid #8a8886;border-radius:3px;background:#fff;color:#242424;cursor:pointer}button:hover{background:#f3f2f1}button:disabled{opacity:.6;cursor:default}';
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Update title'); b.onclick = () => startTicket(b);
     r.append(st, b);
     wrap.appendChild(ticketHost);
   }
