@@ -2,7 +2,7 @@
 // Google Sheets), guarda as linhas no navegador (chrome.storage.local) e procura os contatos de um país.
 // O link vem das configurações de cada pessoa; nada disso fica no código.
 (() => {
-  const RC_URL_KEY = 'rc_url', RC_DATA_KEY = 'rc_contacts', STALE_MS = 6 * 60 * 60 * 1000;
+  const RC_URL_KEY = 'rc_url', RC_DATA_KEY = 'rc_contacts', STALE_MS = 6 * 60 * 60 * 1000, DATA_VERSION = 2;
   const clean = (s) => String(s == null ? '' : s).replace(/[ ﻿]/g, ' ').trim();
   const norm = (s) => clean(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -32,6 +32,13 @@
         const iMail = col(/^e ?mail/), iCountry = col(/^country/);
         if (iMail < 0 || iCountry < 0) continue;
         const iName = col(/^(full )?name/), iDesc = col(/^description/), iCom = col(/^comments?/);
+        // Carregadores atendidos (ex.: "SI-D, SI-UC, VC3"): coluna chamada charger/device/product, ou a coluna H.
+        let iCh = col(/charger|device|product|equipment/);
+        if (iCh < 0) {
+          const start = XLSX.utils.decode_range(wb.Sheets[name]['!ref'] || 'A1').s.c;
+          const h8 = 7 - start;
+          if (h8 >= 0 && ![iName, iMail, iCountry, iDesc, iCom].includes(h8)) iCh = h8;
+        }
         const out = [];
         for (const r of rows.slice(h + 1)) {
           const mails = clean(r[iMail]).split(/[;,\s]+/).filter((m) => /@/.test(m));
@@ -39,6 +46,7 @@
           mails.forEach((email) => out.push({
             name: iName >= 0 ? clean(r[iName]) : '', email, country: clean(r[iCountry]),
             description: iDesc >= 0 ? clean(r[iDesc]) : '', comment: iCom >= 0 ? clean(r[iCom]) : '',
+            chargers: iCh >= 0 ? clean(r[iCh]).split(/[,;/\n]+/).map((x) => x.trim().toUpperCase()).filter(Boolean) : [],
           }));
         }
         return out;
@@ -58,7 +66,7 @@
     const link = clean((await chrome.storage.local.get(RC_URL_KEY))[RC_URL_KEY]);
     if (!link) throw new Error('No link set. Paste the Excel link in the settings.');
     const rows = await download(link);
-    await chrome.storage.local.set({ [RC_DATA_KEY]: { rows, t: Date.now() } });
+    await chrome.storage.local.set({ [RC_DATA_KEY]: { rows, t: Date.now(), v: DATA_VERSION } });
     return rows;
   }
 
@@ -81,13 +89,17 @@
   }
 
   // Contatos de um país: usa a lista guardada e a atualiza se estiver velha (ou ausente).
-  async function find(code) {
+  // Com o carregador do ticket: fica só quem atende esse carregador (linha sem carregadores atende todos).
+  async function find(code, charger) {
     let data = (await chrome.storage.local.get(RC_DATA_KEY))[RC_DATA_KEY];
     let note = '';
-    if (!data || Date.now() - data.t > STALE_MS) {
+    if (!data || data.v !== DATA_VERSION || Date.now() - data.t > STALE_MS) {
       try { data = { rows: await refresh(), t: Date.now() }; } catch (e) { if (!data) throw e; note = e.message; }
     }
-    return { rows: match(data.rows, code), total: data.rows.length, note };
+    let rows = match(data.rows, code);
+    const ch = String(charger || '').toUpperCase();
+    if (ch) rows = rows.filter((r) => !r.chargers || !r.chargers.length || r.chargers.includes(ch));
+    return { rows, total: data.rows.length, note };
   }
 
   globalThis.RCContacts = { refresh, find, match, parse, downloadUrl, RC_URL_KEY, RC_DATA_KEY };

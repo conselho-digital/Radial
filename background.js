@@ -267,7 +267,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   // O botão "Insert RC" do rascunho pede os contatos de um país (código de 2 letras).
   if (msg.type === 'rc-find' && sender.tab && sender.frameId === 0 && typeof msg.code === 'string' && /^[A-Za-z]{2}$/.test(msg.code)) {
-    RCContacts.find(msg.code)
+    RCContacts.find(msg.code, typeof msg.charger === 'string' ? msg.charger : '')
       .then((r) => sendResponse({ ok: true, ...r }))
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true;

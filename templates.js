@@ -9,7 +9,7 @@
   const I = window.RADIAL_I18N;
   const tr = (s, v) => I.t(s, v);
   const STORE_KEY = 'tpl_recent';
-  const CACHE_MS = 60 * 60 * 1000;           // atualiza sozinho se a lista tiver mais de 1 hora
+  const CACHE_MS = 2 * 60 * 60 * 1000;       // lê a lista do Dynamics de novo a cada 2 horas
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
@@ -181,7 +181,8 @@
   const maxShown = () => Math.min(30, Math.max(1, parseInt(settings.emailTplKeep, 10) || 15));
   const showCount = () => Math.min(30, Math.max(1, parseInt(settings.emailTplSee, 10) || 8));
   const rank = () => [...hist].sort((a, b) => b.last - a.last).slice(0, maxShown());
-  const saveHist = () => chrome.storage.local.set({ [STORE_KEY]: { items: hist.slice(0, 80), t: Date.now() } });
+  let readAt = 0;   // última vez que a lista foi lida do Dynamics
+  const saveHist = () => chrome.storage.local.set({ [STORE_KEY]: { items: hist.slice(0, 80), t: Date.now(), r: readAt } });
   function seen(list) {
     const now = Date.now();
     list.forEach((it, i) => {
@@ -243,6 +244,7 @@
     try {
       const list = await readRecent();
       if (list) {
+        readAt = Date.now();
         seen(list);
         hist.sort((a, b) => b.last - a.last);
         hist = hist.slice(0, 80);
@@ -256,13 +258,19 @@
 
   // "eMob - Case Handover RC NEW": troca "RC-XX" no corpo pelo código de 2 letras do título (".../AT-[...").
   const RC_TEMPLATE = /^eMob - Case Handover RC NEW$/i;
-  function countryCode() {
+  // Título do ticket: "...-DC/SI-D/SA-[Y2/..." -> carregador "SI-D" e país "SA".
+  const KNOWN_CHARGERS = ['SI-D', 'SI-UC', 'VC3', 'FLEX', 'RAPID', 'MOBILE', 'LEG'];
+  function titleInfo() {
     for (const h of document.querySelectorAll('[data-id="header_title"], h1[id^="formHeaderTitle"]')) {
-      const m = /\/([A-Za-z]{2})-\[/.exec(h.getAttribute('title') || h.textContent || '');
-      if (m && visible(h)) return m[1].toUpperCase();
+      const m = /\/([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\/([A-Za-z]{2})-\[/.exec(h.getAttribute('title') || h.textContent || '');
+      if (m && visible(h)) {
+        const raw = m[1].toUpperCase();
+        return { country: m[2].toUpperCase(), charger: KNOWN_CHARGERS.includes(raw) ? raw : 'OTHER', raw };
+      }
     }
     return null;
   }
+  const countryCode = () => (titleInfo() || {}).country || null;
   function editorDocs() {
     const docs = [document];
     document.querySelectorAll('iframe').forEach((f) => { try { if (f.contentDocument && f.contentDocument.body) docs.push(f.contentDocument); } catch (_) { /* outro domínio */ } });
@@ -420,11 +428,11 @@
     const btn = rcHost && rcHost.shadowRoot.querySelector('button');
     if (btn) btn.disabled = true;
     try {
-      const code = countryCode();
+      const info = titleInfo(), code = info && info.country;
       if (!code) return toast([tr('Insert RC'), tr('Could not find the country code in the email title.')], true);
-      const res = await chrome.runtime.sendMessage({ type: 'rc-find', code });
+      const res = await chrome.runtime.sendMessage({ type: 'rc-find', code, charger: info.charger });
       if (!res || !res.ok) return toast([tr('Insert RC'), (res && res.error) || tr('Could not read the list.')], true);
-      if (!res.rows.length) return toast([tr('Insert RC'), tr('No contact for {code} in the list.', { code })], true);
+      if (!res.rows.length) return toast([tr('Insert RC'), tr('No contact for {code} ({charger}) in the list.', { code, charger: info.charger })], true);
       const done = [], failed = [];
       const empty = tagEls().length === 0;             // To vazio: não precisa conferir, só insere
       const seenMail = new Set();
@@ -473,11 +481,13 @@
       loadedCache = false;   // rascunho novo: confere de novo se a lista está velha
       render();
     }
+    if (loadedCache && !working && readAt && Date.now() - readAt > CACHE_MS) refresh(false);
     if (!loadedCache) {
       loadedCache = true;
       const c = (await chrome.storage.local.get(STORE_KEY))[STORE_KEY];
       if (c && Array.isArray(c.items)) { hist = c.items.map((x) => ({ name: x.name, type: x.type || '', count: x.count || 0, last: x.last || 0 })); items = rank(); render(); }
-      if (!c || Date.now() - c.t > CACHE_MS) setTimeout(() => refresh(false), 1500);
+      readAt = (c && (c.r || c.t)) || 0;
+      if (!readAt || Date.now() - readAt > CACHE_MS) setTimeout(() => refresh(false), 1500);
     }
   }
 
