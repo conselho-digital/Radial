@@ -490,6 +490,12 @@
     { key: 'RC', color: '#ffd1dc', area: 'DC', label: 'RC' }, { key: 'FLEX', color: '#d6d8d8', area: 'DC', label: 'Flex' }, { key: 'RAPID', color: '#bee5eb', area: 'DC', label: 'Rapid' },
     { key: 'MOB', area: 'DC', label: 'Mobile', color: '#cce5ff' }, { key: 'LEG', color: '#e2e3e5', area: 'DC', label: 'Legacy' }, { key: 'other', color: '#ffccb3', area: 'DC', label: 'Other' }
   ];
+  const SOFTWARE = [
+    { key: 'Si-Charge', label: 'Sifinity Charge', color: '#d1ecf1' }, { key: 'Si-Control', label: 'Sifinity Control', color: '#e2e3e5' },
+    { key: 'Si-Depot', label: 'Sifinity Depot', color: '#fff3cd' }, { key: 'Si-Fleet', label: 'Sifinity Fleet', color: '#d4edda' },
+    { key: 'Si-Go', label: 'Sifinity Go', color: '#f8d7da' }, { key: 'Si-Setup', label: 'Sifinity Setup', color: '#e0cffc' }
+  ];
+  const detectSoftware = (name) => { const n = fold(name); return SOFTWARE.find((x) => n.includes(fold(x.label)) || n.includes(fold(x.key))) || null; };
   function detectCharger(name) {
     const n = String(name || '').toLowerCase();
     const pick = (k) => CHARGERS.find((c) => c.key === k);
@@ -553,29 +559,56 @@
   }
   const deviceId = () => { const i = qv('input[aria-label="Device ID"]'); return i ? norm(i.value || i.getAttribute('title')) : ''; };
 
-  let ticketHost = null, ticketBusy = false, ticketDlg = null;
+  // Países para escolher quando o campo "Country of Charger" está vazio.
+  function countryList() {
+    const out = [];
+    try {
+      const dn = new Intl.DisplayNames(['en'], { type: 'region' });
+      for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) { const c = String.fromCharCode(a, b), n = dn.of(c); if (n && n !== c) out.push({ name: n, code: c }); }
+    } catch (_) { /* sem Intl.DisplayNames */ }
+    return out.sort((x, y) => x.name.localeCompare(y.name));
+  }
+  // Escreve no campo de busca do Dynamics, espera a lista, Enter na primeira opção.
+  async function pickLookup(input, text) {
+    realClick(input);
+    typeInto(input, text);
+    const found = await waitFor(() => dropdownRow(input, text.toLowerCase()), 7000, 150);
+    if (found) { await sleep(300); pressKey(input, 'Enter'); await sleep(900); } else { wipeInput(input); await sleep(300); }
+    return !!found;
+  }
+  const COUNTRY_INPUT = 'input[data-id*="sie_countryofcharger"][data-id*="textInputBox"], [data-id*="sie_countryofcharger"] input[type="text"], [id*="sie_countryofcharger"] input[type="text"]';
+
+  let ticketHost = null, ticketBusy = false, ticketDlg = null, ticketRun = 0;
+
+  // Passa pela aba Product (família, serial do asset, Device ID), volta a Main e lê o título atual.
+  async function collectProduct(d) {
+    const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
+    if (!tabP || !tabM) throw new Error(tr('Product and Main tabs not found.'));
+    realClick(tabP);
+    const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
+    d.fam = fam || '';
+    d.sw = detectSoftware(d.fam);
+    d.charger = d.sw ? null : detectCharger(d.fam);
+    if (!d.sw) {
+      d.serial = (await waitFor(assetSerial, 7000)) || '';
+      if (!d.charger || d.charger.key === 'SI-D') d.dev = (await waitFor(deviceId, 4000)) || '';
+    }
+    realClick(tabM);
+    const input = await waitFor(() => qv(TITLE_SEL), 6000);
+    if (!input) throw new Error(tr('Case Title field not found.'));
+    const i = input.value.lastIndexOf(']');
+    d.rest = i >= 0 ? input.value.slice(i + 1).trim() : norm(input.value);
+  }
+
   async function startTicket(btn) {
     if (ticketBusy) return;
     ticketBusy = true; btn.disabled = true;
+    const run = ++ticketRun;
     try {
-      const cc = countryToCode(countryName());
-      if (!cc) {
-        const r = await chrome.runtime.sendMessage({ type: 'run-option', id: 'def_1' });
-        if (!r || !r.ok) toast([tr('Ticket'), (r && r.error) || tr('Could not open the ticket generator.')], true);
-        return;
-      }
-      const id = ticketId();
-      const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
-      if (!tabP || !tabM) { toast([tr('Ticket'), tr('Product and Main tabs not found.')], true); return; }
-      realClick(tabP);
-      const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
-      const serial = await waitFor(assetSerial, 7000) || '';
-      const ch = detectCharger(fam);
-      const dev = (!ch || ch.key === 'SI-D') ? (await waitFor(deviceId, 4000)) || '' : '';
-      realClick(tabM);
-      const input = await waitFor(() => qv(TITLE_SEL), 6000);
-      if (!input) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
-      openTicketDialog({ id, cc, charger: ch, serial, dev, fam: fam || '', rest: (() => { const i = input.value.lastIndexOf(']'); return i >= 0 ? input.value.slice(i + 1).trim() : norm(input.value); })() });
+      const name = countryName();
+      const d = { id: ticketId(), cc: countryToCode(name), fam: '', charger: null, sw: null, serial: '', dev: '', rest: '', run };
+      if (d.cc) { await collectProduct(d); if (run === ticketRun) openTicketDialog(d); }
+      else openTicketDialog(d);   // sem país: a janela pergunta, grava no campo e então lê o produto
     } catch (e) {
       console.warn('Radial: ticket', e);
       toast([tr('Ticket'), String(e && e.message || e)], true);
@@ -597,6 +630,7 @@
       .note{font-size:11px;font-weight:600;color:#555;margin:0 0 6px}.note.gap{margin-top:14px}
       .list{border:1px solid #005f6b;border-radius:5px;background:#fff;max-height:300px;overflow-y:auto}
       .it{padding:8px 12px;cursor:pointer;font-size:14px;font-weight:bold;color:#333;background:#fff;border:0;width:100%;text-align:left;display:block;font-family:inherit}.it:hover{background:#005f6b;color:#fff}
+      .it.sw{color:#005f6b;border-top:1px solid #cfd8dc}
       .act{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
       .btn{background:#005f6b;color:#fff;border:none;border-radius:4px;padding:6px 18px;font:bold 13px 'Segoe UI',Roboto,sans-serif;cursor:pointer}.btn:hover{background:#004852}
       .btn.g{background:#fff;color:#005f6b;border:1px solid #005f6b}.btn.g:hover{background:#e6f7f8}`;
@@ -605,46 +639,75 @@
     box.innerHTML = '<div class="top"><span>Ticket Generator</span><button class="x" type="button" aria-label="Close">&times;</button></div><div class="body"></div>';
     const body = box.querySelector('.body');
     const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-    const close = () => { if (ticketDlg) ticketDlg.remove(); ticketDlg = null; };
+    const close = () => { d.closed = true; if (ticketDlg) ticketDlg.remove(); ticketDlg = null; };
     box.querySelector('.x').onclick = close;
-    const prefix = () => `ID${d.id}-${d.charger.area}/${d.charger.key}/${d.cc}-[${norm(d.serial) || 'NULL'}]`;
+    const sn = () => norm(d.serial) || 'NULL';
+    const prefix = () => d.sw ? `ID${d.id}-${d.sw.key}/${d.cc}-[${sn()}]` : `ID${d.id}-${d.charger.area}/${d.charger.key}/${d.cc}-[${sn()}]`;
+    const busy = (msg) => { body.textContent = ''; body.append(mk('div', 'lbl', msg)); };
 
-    // Uma pergunta por vez: só o que faltou (família do produto, serial); sem faltas, a tela final.
+    // Uma pergunta por vez: país, tipo (carregador ou software), serial; sem faltas, a tela final.
     function step() {
+      if (d.closed) return;
       body.textContent = '';
-      if (!d.charger) return askCharger();
-      if (!d.serial && !d.serialAsked) return askSerial();
+      if (!d.cc) return askCountry();
+      if (!d.sw && !d.charger) return askType(false);
+      if (!d.sw && !d.serial && !d.serialAsked) return askSerial();
       return finalStep();
     }
-    function askCharger() {
-      body.append(mk('div', 'lbl', tr('Product family not recognized{name}. Pick the charger:', { name: d.fam ? ' (' + d.fam + ')' : '' })));
+    function askCountry() {
+      body.append(mk('div', 'lbl', tr('Country not found. Pick the country:')));
+      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the country name');
+      const list = mk('div', 'list'); list.style.marginTop = '6px';
+      const all = countryList();
+      const items = all.map((c) => { const b = mk('button', 'it', c.name); b.type = 'button'; b.onclick = () => choose(c); list.appendChild(b); return { c, b }; });
+      const filter = () => { const q = fold(inp.value); items.forEach(({ c, b }) => { b.style.display = !q || fold(c.name).includes(q) ? 'block' : 'none'; }); };
+      async function choose(c) {
+        busy(tr('Reading the ticket…'));
+        try {
+          const f = document.querySelector(COUNTRY_INPUT);
+          if (!f) throw new Error(tr('Country of Charger field not found.'));
+          const ok = await pickLookup(f, c.name);
+          if (!ok) throw new Error(tr('Could not select "{name}" in Country of Charger.', { name: c.name }));
+          d.cc = c.code;
+          await collectProduct(d);
+          step();
+        } catch (e) { toast([tr('Ticket'), String(e && e.message || e)], true); close(); }
+      }
+      inp.addEventListener('input', filter);
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const f = items.find((x) => x.b.style.display !== 'none'); if (f) choose(f.c); } });
+      body.append(inp, list);
+      setTimeout(() => inp.focus(), 30);
+    }
+    function askType(software) {
+      body.append(mk('div', 'lbl', software ? tr('Pick the software:') : tr('Product family not recognized{name}. Pick the charger:', { name: d.fam ? ' (' + d.fam + ')' : '' })));
       const list = mk('div', 'list');
-      CHARGERS.forEach((c) => {
+      (software ? SOFTWARE : CHARGERS).forEach((c) => {
         const b = mk('button', 'it', c.label); b.type = 'button';
-        b.onclick = () => { d.charger = c; if (c.key === 'SI-D' && !d.dev) d.dev = deviceId(); step(); };
+        b.onclick = () => { if (software) d.sw = c; else { d.charger = c; if (c.key === 'SI-D' && !d.dev) d.dev = deviceId(); } step(); };
         list.appendChild(b);
       });
+      const sw = mk('button', 'it sw', software ? tr('Back to chargers') : 'Software'); sw.type = 'button';
+      sw.onclick = () => { body.textContent = ''; askType(!software); };
+      list.appendChild(sw);
       body.appendChild(list);
     }
     function askSerial() {
       body.append(mk('div', 'lbl', tr('Serial number not found')));
-      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the serial number');
+      const inp = mk('input'); inp.spellcheck = false; inp.value = 'NULL';
       body.appendChild(inp);
       const act = mk('div', 'act');
-      const skip = mk('button', 'btn g', tr('Skip (NULL)')); skip.type = 'button';
       const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
-      const go = () => { d.serial = norm(inp.value); d.serialAsked = true; step(); };
-      skip.onclick = () => { d.serialAsked = true; d.serial = ''; finalStep(); };
+      const go = () => { const v = norm(inp.value); d.serial = /^null$/i.test(v) ? '' : v; d.serialAsked = true; step(); };
       ok.onclick = go;
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
-      act.append(skip, ok); body.appendChild(act);
-      setTimeout(() => inp.focus(), 30);
+      act.append(ok); body.appendChild(act);
+      setTimeout(() => { inp.focus(); inp.select(); }, 30);
     }
     function finalStep() {
       body.textContent = '';
-      const pre = mk('div', 'pre', prefix()); pre.style.background = d.charger.color || '#fff';
+      const pre = mk('div', 'pre', prefix()); pre.style.background = (d.sw || d.charger).color || '#fff';
       body.appendChild(pre);
-      const l2 = mk('div', 'note gap', tr('Ticket Title')); body.appendChild(l2);
+      body.appendChild(mk('div', 'note gap', tr('Ticket Title')));
       const rest = mk('input'); rest.spellcheck = false; rest.value = d.rest; body.appendChild(rest);
       const act = mk('div', 'act');
       const cn = mk('button', 'btn g', tr('Cancel')); cn.type = 'button'; cn.onclick = close;
@@ -653,7 +716,7 @@
         const t = document.querySelector(TITLE_SEL);
         if (!t) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
         typeInto(t, (prefix() + ' ' + norm(rest.value)).trim()); t.dispatchEvent(new Event('change', { bubbles: true }));
-        if (d.charger.key === 'SI-D' && d.dev) {
+        if (d.charger && d.charger.key === 'SI-D' && d.dev) {
           const c = document.querySelector('input[data-id="sie_chargerid.fieldControl-text-box-text"]');
           if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
         }
