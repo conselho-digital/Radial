@@ -132,17 +132,6 @@
       </div>
       </div>
     </section>
-
-    <section class="card" aria-labelledby="h-auto">
-      <div class="card-head">
-        <h2 id="h-auto"><label class="h2-check" title="On the sites below, whenever your status is Do not disturb (no calls), the extension shows it as Available on your screen. If the presence button shows Available, it switches you to Do not disturb. Hold Shift while choosing Available to get the real Available. Any other status is shown as it is."><input type="checkbox" id="autoDnd"><span>Automatic status</span></label></h2>
-      </div>
-      <div class="field">
-        <label class="lbl" for="autoDndHosts">Sites (one per line)</label>
-        <textarea id="autoDndHosts" spellcheck="false" style="min-height:80px" placeholder="isp.crm4.dynamics.com"></textarea>
-        <p class="help">Changes apply right away. Pages already open may need a refresh.</p>
-      </div>
-    </section>
     </div>
     <div class="col">
     <section class="card" aria-labelledby="h-bm">
@@ -153,54 +142,64 @@
       <div id="bmEditor"></div>
     </section>
 
-    <section class="card" aria-labelledby="h-tpl">
-      <div class="card-head">
-        <h2 id="h-tpl"><label class="h2-check" title="On the email draft page, shows your recently used templates below Attachments. The extension opens the Insert Template window out of sight to read them, then closes it."><input type="checkbox" id="emailTpl"><span>Recent email templates</span></label></h2>
-      </div>
-      <div class="field">
-        <label class="lbl" for="emailTplHosts">Sites (one per line)</label>
-        <textarea id="emailTplHosts" spellcheck="false" style="min-height:60px" placeholder="isp.crm4.dynamics.com"></textarea>
-      </div>
-      <div class="field">
-        <label class="lbl" for="emailTplKeep">Templates to remember</label>
-        <input type="number" id="emailTplKeep" min="1" max="30" step="1" style="width:90px">
-        <label class="lbl" for="emailTplSee" style="margin-top:10px">Visible without scrolling</label>
-        <input type="number" id="emailTplSee" min="1" max="30" step="1" style="width:90px">
-        <p class="help">The last ones you used come first; the rest appear by scrolling the list.</p>
-      </div>
-    </section>
-
-    <section class="card" aria-labelledby="h-rq">
-      <div class="card-head">
-        <h2 id="h-rq"><label class="h2-check" title="When an email draft opens, removes this recipient from the To field (once per draft). Uses the sites of the card above."><input type="checkbox" id="removeQueue"><span>Remove recipient</span></label></h2>
-      </div>
-      <div class="field">
-        <label class="lbl" for="removeQueueName">Recipient name</label>
-        <input type="text" id="removeQueueName" spellcheck="false" placeholder="eMobility Support Queue">
-      </div>
-    </section>
-    </div>
-    <div class="col">
-    <section class="card" aria-labelledby="h-rc">
-      <div class="card-head">
-        <h2 id="h-rc"><label class="h2-check" title="Adds an Insert RC button next to To in email drafts. It reads the country code from the title and adds the contact's email from your list (once). Uses the sites of the templates card."><input type="checkbox" id="rcBtn"><span>Insert RC button</span></label></h2>
-      </div>
-      <div class="field">
-        <label class="lbl" for="rcUrl">Contacts list link (Excel on OneDrive or SharePoint)</label>
-        <input type="text" id="rcUrl" spellcheck="false" placeholder="https://…sharepoint.com/:x:/…">
-        <p class="help">Columns: Full Name, Email, Country, Description, Comment. Share it only with your company. The link stays in this browser and is never synced or shared.</p>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
-          <button class="btn" id="rcValidate" type="button">Validate</button>
-          <span id="rcStatus" class="help" role="status" style="margin:0"></span>
-        </div>
-      </div>
-    </section>
-
     <section class="card" aria-labelledby="h-saved">
       <div class="card-head">
         <h2 id="h-saved">Saved options</h2>
       </div>
       <ul class="list" id="list"></ul>
+    </section>
+    </div>
+    <div class="col">
+    <section class="card" aria-labelledby="h-isp">
+      <div class="card-head">
+        <h2 id="h-isp">ISP Features</h2>
+      </div>
+
+      <div class="feat">
+        <label class="h2-check feat-title"><input type="checkbox" id="autoDnd"><span>Auto Stats</span></label>
+        <div id="autoPw" class="pw" hidden>
+          <input type="password" id="autoPwInput" autocomplete="off" spellcheck="false" placeholder="Password" aria-label="Password">
+          <button class="btn" id="autoPwOk" type="button">OK</button>
+          <span id="autoPwMsg" class="help" role="status" style="margin:0"></span>
+        </div>
+        <textarea id="autoDndHosts" hidden></textarea>
+      </div>
+
+      <div class="feat">
+        <label class="h2-check feat-title" title="On the email draft page, shows your recently used templates below Attachments. The extension opens the Insert Template window out of sight to read them, then closes it."><input type="checkbox" id="emailTpl"><span>Recent email templates</span></label>
+        <div class="field">
+          <label class="lbl" for="emailTplHosts">Sites (one per line)</label>
+          <textarea id="emailTplHosts" spellcheck="false" style="min-height:60px" placeholder="isp.crm4.dynamics.com"></textarea>
+        </div>
+        <div class="field">
+          <label class="lbl" for="emailTplKeep">Templates to remember</label>
+          <input type="number" id="emailTplKeep" min="1" max="30" step="1" style="width:90px">
+          <label class="lbl" for="emailTplSee" style="margin-top:10px">Visible without scrolling</label>
+          <input type="number" id="emailTplSee" min="1" max="30" step="1" style="width:90px">
+          <p class="help">The last ones you used come first; the rest appear by scrolling the list.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <label class="h2-check feat-title" title="When an email draft opens, removes this recipient from the To field (once per draft). Uses the sites above."><input type="checkbox" id="removeQueue"><span>Remove recipient</span></label>
+        <div class="field">
+          <label class="lbl" for="removeQueueName">Recipient name</label>
+          <input type="text" id="removeQueueName" spellcheck="false" placeholder="eMobility Support Queue">
+        </div>
+      </div>
+
+      <div class="feat">
+        <label class="h2-check feat-title" title="Adds an Insert RC button next to To in email drafts. It reads the country code from the title and adds the contact's email from your list (once). Uses the sites above."><input type="checkbox" id="rcBtn"><span>Insert RC button</span></label>
+        <div class="field">
+          <label class="lbl" for="rcUrl">Contacts list link (Excel on OneDrive or SharePoint)</label>
+          <input type="text" id="rcUrl" spellcheck="false" placeholder="https://…sharepoint.com/:x:/…">
+          <p class="help">Columns: Full Name, Email, Country, Description, Comment. Share it only with your company. The link stays in this browser and is never synced or shared.</p>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+            <button class="btn" id="rcValidate" type="button">Validate</button>
+            <span id="rcStatus" class="help" role="status" style="margin:0"></span>
+          </div>
+        </div>
+      </div>
     </section>
     </div>
   </main>

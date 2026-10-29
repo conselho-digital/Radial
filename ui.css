@@ -269,3 +269,12 @@ body:not(.popup) .wrap { max-width: 1480px; padding: 28px 40px 96px; }
 }
 .h2-check { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
 .h2-check input { width: 20px; height: 20px; accent-color: var(--primary); margin: 0; cursor: pointer; }
+
+/* ---------- Card "ISP Features" ---------- */
+.feat { padding: 18px 0; border-top: 1px solid var(--border); }
+.card-head + .feat { border-top: 0; padding-top: 0; }
+.pw[hidden] { display: none; }
+.feat-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.feat .field { margin-top: 12px; }
+.pw { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.pw input { width: 160px; min-height: 36px; padding: 4px 10px; font-size: 14px; }

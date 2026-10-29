@@ -177,7 +177,24 @@ $('size').oninput = () => { $('sizeOut').textContent = $('size').value + ' px'; 
 $('size').onchange = () => { cfg.size = Number($('size').value) || 380; showCfg(); saveCfg(); };
 $('contentScale').oninput = () => { $('contentOut').textContent = $('contentScale').value + '%'; };
 $('contentScale').onchange = () => { cfg.contentScale = (Number($('contentScale').value) || 150) / 100; showCfg(); saveCfg(); };
-$('autoDnd').onchange = () => { cfg.autoDnd = $('autoDnd').checked; saveCfg(); };
+// Auto Stats: ligar pede uma senha; desligar não pede nada.
+const AUTO_PW = '451370';
+$('autoDnd').onchange = () => {
+  if (!$('autoDnd').checked) { cfg.autoDnd = false; $('autoPw').hidden = true; saveCfg(); return; }
+  $('autoDnd').checked = false;
+  $('autoPw').hidden = false; $('autoPwMsg').textContent = ''; $('autoPwInput').value = '';
+  $('autoPwInput').focus();
+};
+function tryAutoPw() {
+  if ($('autoPwInput').value === AUTO_PW) {
+    cfg.autoDnd = true; $('autoDnd').checked = true; $('autoPw').hidden = true; saveCfg();
+  } else {
+    $('autoPwMsg').style.color = '#c4314b'; $('autoPwMsg').textContent = t('Wrong password.');
+    $('autoPwInput').select();
+  }
+}
+$('autoPwOk').onclick = tryAutoPw;
+$('autoPwInput').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); tryAutoPw(); } };
 $('removeQueue').onchange = () => { cfg.removeQueue = $('removeQueue').checked; saveCfg(); };
 $('removeQueueName').onchange = () => { cfg.removeQueueName = $('removeQueueName').value.trim(); saveCfg(); };
 $('emailTplSee').onchange = () => { cfg.emailTplSee = Math.min(30, Math.max(1, parseInt($('emailTplSee').value, 10) || 8)); showCfg(); saveCfg(); };
