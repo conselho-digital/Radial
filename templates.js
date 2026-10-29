@@ -410,18 +410,30 @@
     if (!document.execCommand('delete')) { nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })); }
   }
 
-  // No ISP, um e-mail seguido de espaço vira destinatário e não se repete se o contato já estiver lá.
-  // Sem conferir nada depois: escreve "e-mail ", dá um tempo para o ISP processar, seleciona o texto e apaga.
+  const KEYCODES = { Enter: 13 };
+  function pressKey(el, k) {
+    ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t, { key: k, code: k, keyCode: KEYCODES[k] || 0, which: KEYCODES[k] || 0, bubbles: true, cancelable: true })));
+  }
+  // A lista de resultados do Dynamics mostra o e-mail do contato em uma das linhas; "No records found" quando não há.
+  const dropdownRow = (input, email) => [...document.querySelectorAll('li,div,span,p')].some((e) => e !== input && e.children.length === 0 && visible(e) && norm(e.textContent).toLowerCase().includes(email));
+  const dropdownEmpty = () => [...document.querySelectorAll('li,div,span,p')].some((e) => e.children.length === 0 && visible(e) && /^no records found/i.test(norm(e.textContent)));
+
+  // Escreve o e-mail, espera a lista de resultados aparecer, aperta Enter (escolhe a primeira opção) e limpa o campo.
   async function addRecipient(c) {
     const input = document.querySelector(TO_INPUT);
     if (!input) throw new StepError('To box');
+    const email = c.email.toLowerCase();
     realClick(input);
-    typeInto(input, c.email + ' ');
-    ['keydown', 'keyup'].forEach((t) => input.dispatchEvent(new KeyboardEvent(t, { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true })));
-    await sleep(900);
+    typeInto(input, c.email);
+    const found = await waitFor(() => dropdownRow(input, email) || (dropdownEmpty() ? 'none' : false), 7000, 150);
+    if (found === true) {
+      await sleep(300);              // deixa a lista terminar de montar
+      pressKey(input, 'Enter');
+      await sleep(900);
+    }
     wipeInput(input);
     await sleep(300);
-    return true;
+    return found === true;
   }
 
   async function insertRC() {
