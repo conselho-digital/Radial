@@ -168,10 +168,6 @@
       <div class="feat">
         <label class="h2-check feat-title" title="On the email draft page, shows your recently used templates below Attachments. The extension opens the Insert Template window out of sight to read them, then closes it."><input type="checkbox" id="emailTpl"><span>Recent email templates</span></label>
         <div class="field">
-          <label class="lbl" for="emailTplHosts">Sites (one per line)</label>
-          <textarea id="emailTplHosts" spellcheck="false" style="min-height:60px" placeholder="isp.crm4.dynamics.com"></textarea>
-        </div>
-        <div class="field">
           <label class="lbl" for="emailTplKeep">Templates to remember</label>
           <input type="number" id="emailTplKeep" min="1" max="30" step="1" style="width:90px">
           <label class="lbl" for="emailTplSee" style="margin-top:10px">Visible without scrolling</label>
@@ -181,15 +177,11 @@
       </div>
 
       <div class="feat">
-        <label class="h2-check feat-title" title="When an email draft opens, removes this recipient from the To field (once per draft). Uses the sites above."><input type="checkbox" id="removeQueue"><span>Remove recipient</span></label>
-        <div class="field">
-          <label class="lbl" for="removeQueueName">Recipient name</label>
-          <input type="text" id="removeQueueName" spellcheck="false" placeholder="eMobility Support Queue">
-        </div>
+        <label class="h2-check feat-title" title="When an email draft opens, removes this recipient from the To field (once per draft)."><input type="checkbox" id="removeQueue"><span>Remove recipient</span></label>
       </div>
 
       <div class="feat">
-        <label class="h2-check feat-title" title="Adds an Insert RC button next to To in email drafts. It reads the country code from the title and adds the contact's email from your list (once). Uses the sites above."><input type="checkbox" id="rcBtn"><span>Insert RC button</span></label>
+        <label class="h2-check feat-title" title="Adds an Insert RC button next to To in email drafts. It reads the country code from the title and adds the contact's email from your list (once)."><input type="checkbox" id="rcBtn"><span>Insert RC button</span></label>
         <div class="field">
           <label class="lbl" for="rcUrl">Contacts list link (Excel on OneDrive or SharePoint)</label>
           <input type="text" id="rcUrl" spellcheck="false" placeholder="https://…sharepoint.com/:x:/…">

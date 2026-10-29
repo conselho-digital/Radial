@@ -109,7 +109,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, rcBtn: false, emailTplKeep: 15, emailTplSee: 8, removeQueueName: 'eMobility Support Queue' };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: true, removeQueue: true, rcBtn: false, emailTplKeep: 15, emailTplSee: 8 };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -144,8 +144,6 @@ function showCfg() {
   if (document.activeElement !== $('emailTplKeep')) $('emailTplKeep').value = cfg.emailTplKeep || 15;
   if (document.activeElement !== $('emailTplSee')) $('emailTplSee').value = cfg.emailTplSee || 8;
   $('removeQueue').checked = !!cfg.removeQueue;
-  if (document.activeElement !== $('removeQueueName')) $('removeQueueName').value = cfg.removeQueueName || '';
-  if (document.activeElement !== $('emailTplHosts')) $('emailTplHosts').value = String(cfg.emailTplHosts || '').split(/[\s,;]+/).filter(Boolean).join('\n');
   if (document.activeElement !== $('autoDndHosts')) $('autoDndHosts').value = String(cfg.autoDndHosts || '').split(/[\s,;]+/).filter(Boolean).join('\n');
   const trig = { middle: 'middle', back: 'back', forward: 'forward', 'right-hold': 'right' }[cfg.mouse];
   if (trig && cfg.cancel === trig) cfg.cancel = 'none';
@@ -196,7 +194,6 @@ function tryAutoPw() {
 $('autoPwOk').onclick = tryAutoPw;
 $('autoPwInput').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); tryAutoPw(); } };
 $('removeQueue').onchange = () => { cfg.removeQueue = $('removeQueue').checked; saveCfg(); };
-$('removeQueueName').onchange = () => { cfg.removeQueueName = $('removeQueueName').value.trim(); saveCfg(); };
 $('emailTplSee').onchange = () => { cfg.emailTplSee = Math.min(30, Math.max(1, parseInt($('emailTplSee').value, 10) || 8)); showCfg(); saveCfg(); };
 $('emailTplKeep').onchange = () => { cfg.emailTplKeep = Math.min(30, Math.max(1, parseInt($('emailTplKeep').value, 10) || 15)); showCfg(); saveCfg(); };
 $('rcBtn').onchange = () => { cfg.rcBtn = $('rcBtn').checked; saveCfg(); };
@@ -220,7 +217,6 @@ chrome.storage.local.get(['rc_url', 'rc_contacts']).then((r) => {
   if (r.rc_contacts && r.rc_contacts.rows) $('rcStatus').textContent = t('Saved list: {n} contacts.', { n: r.rc_contacts.rows.length });
 });
 $('emailTpl').onchange = () => { cfg.emailTpl = $('emailTpl').checked; saveCfg(); };
-$('emailTplHosts').onchange = () => { cfg.emailTplHosts = $('emailTplHosts').value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean).join(' '); showCfg(); saveCfg(); };
 $('autoDndHosts').onchange = () => { cfg.autoDndHosts = $('autoDndHosts').value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean).join(' '); showCfg(); saveCfg(); };
 $('sticky').onchange = () => { cfg.sticky = $('sticky').checked; saveCfg(); };
 document.querySelectorAll('input[name="cancelBtn"]').forEach((r) => {

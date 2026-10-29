@@ -14,13 +14,11 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
-  let settings = { emailTpl: false, emailTplHosts: 'isp.crm4.dynamics.com', removeQueue: false, rcBtn: false, emailTplKeep: 15, emailTplSee: 8, removeQueueName: 'eMobility Support Queue' };
+  const HOST = 'isp.crm4.dynamics.com';
+  const QUEUE_NAME = 'eMobility Support Queue';
+  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, emailTplKeep: 15, emailTplSee: 8 };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
-  const hostOk = () => {
-    const h = hostKey();
-    return String(settings.emailTplHosts || '').split(/[\s,;]+/).map((x) => x.trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split('/')[0].replace(/^www\./, '')).filter(Boolean)
-      .some((d) => h === d || h.endsWith('.' + d));
-  };
+  const hostOk = () => hostKey() === HOST || hostKey().endsWith('.' + HOST);
   const enabled = () => !!settings.emailTpl && hostOk();
 
   // ---------- Esperas e buscas por texto ----------
@@ -356,7 +354,7 @@
     let st = queueSeen.get(s);
     if (!st) queueSeen.set(s, (st = { t0: Date.now(), done: false }));
     if (st.done || Date.now() - st.t0 > 15000) return;
-    const want = norm(settings.removeQueueName).toLowerCase();
+    const want = QUEUE_NAME.toLowerCase();
     if (!want) return;
     const tag = [...document.querySelectorAll('[data-id="to.fieldControl-LookupResultsDropdown_to_selected_tag"]')]
       .find((t) => visible(t) && norm(t.getAttribute('title') || t.textContent).toLowerCase() === want);
