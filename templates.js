@@ -16,7 +16,7 @@
 
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
-  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, emailTplKeep: 15, emailTplSee: 8 };
+  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, emailTplKeep: 15, emailTplSee: 8 };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => hostKey() === HOST || hostKey().endsWith('.' + HOST);
   const enabled = () => !!settings.emailTpl && hostOk();
@@ -479,9 +479,170 @@
     label.insertAdjacentElement('afterend', rcHost);
   }
 
+
+  // ---------- Botão "Ticket": monta o título do caso (ID, carregador, país, serial) ----------
+  // Lê o país; sem país, abre o bookmarklet 📋 (pergunta o país e mostra os modelos com NULL).
+  // Com país: visita a aba Product (família do produto, serial do asset e Device ID), volta para Main e
+  // abre uma janela com o resto do título para você editar; Apply grava o título e o Charger ID.
+  const CHARGERS = [
+    { key: 'SI-D', area: 'DC', label: 'Sicharge D' }, { key: 'SI-UC', area: 'DC', label: 'SiCharge UC' },
+    { key: 'AC22', area: 'AC', label: 'Sicharge AC22' }, { key: 'VC3', area: 'AC', label: 'Versicharge' },
+    { key: 'RC', area: 'DC', label: 'RC' }, { key: 'FLEX', area: 'DC', label: 'Flex' }, { key: 'RAPID', area: 'DC', label: 'Rapid' },
+    { key: 'MOBILE', area: 'DC', label: 'Mobile' }, { key: 'LEG', area: 'DC', label: 'Legacy' }, { key: 'other', area: 'DC', label: 'Other' }
+  ];
+  function detectCharger(name) {
+    const n = String(name || '').toLowerCase();
+    const pick = (k) => CHARGERS.find((c) => c.key === k);
+    if (/\buc\b/.test(n)) return pick('SI-UC');
+    if (/ac\s*22/.test(n)) return pick('AC22');
+    if (/versicharge|vc3/.test(n)) return pick('VC3');
+    if (/si-?charge\s*d\b|si-d\b/.test(n)) return pick('SI-D');
+    if (/flex/.test(n)) return pick('FLEX');
+    if (/rapid/.test(n)) return pick('RAPID');
+    if (/mobile/.test(n)) return pick('MOBILE');
+    if (/legacy|\bleg\b/.test(n)) return pick('LEG');
+    if (/\brc\b/.test(n)) return pick('RC');
+    return pick('other');
+  }
+  const fold = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/&/g, 'and').replace(/[’`]/g, "'").replace(/\s+/g, ' ').trim();
+  let cmap = null;
+  function countryToCode(name) {
+    if (!cmap) {
+      cmap = new Map();
+      try {
+        const dn = new Intl.DisplayNames(['en'], { type: 'region' });
+        for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) { const c = String.fromCharCode(a, b), n = dn.of(c); if (n && n !== c) cmap.set(fold(n), c); }
+      } catch (_) { /* sem Intl.DisplayNames */ }
+      Object.entries({ bosnia: 'BA', korea: 'KR', 'brunei darussalam': 'BN', 'russian federation': 'RU', 'viet nam': 'VN', 'syrian arab republic': 'SY',
+        'republic of north macedonia': 'MK', malvinas: 'FK', turkiye: 'TR', 'cabo verde': 'CV', congo: 'CG', laos: 'LA', moldova: 'MD', micronesia: 'FM',
+        palestine: 'PS', iran: 'IR', tanzania: 'TZ', venezuela: 'VE', bolivia: 'BO', taiwan: 'TW', macao: 'MO', "cote d'ivoire": 'CI', 'virgin islands': 'VI',
+        'united kingdom': 'GB', 'united states': 'US', czechia: 'CZ', eswatini: 'SZ', 'timor-leste': 'TL', 'hong kong': 'HK' }).forEach(([k, v]) => cmap.set(k, v));
+    }
+    return cmap.get(fold(name)) || null;
+  }
+  const qv = (sel) => [...document.querySelectorAll(sel)].find(visible);
+  const FAM_SEL = '[data-id="sie_productfamilyid.fieldControl-LookupResultsDropdown_sie_productfamilyid_selected_tag_text"]';
+  const TITLE_SEL = 'input[data-id="title.fieldControl-text-box-text"]';
+  const textOf = (e) => norm(e && (e.getAttribute('title') || e.innerText || e.textContent));
+  const countryName = () => textOf(document.querySelector('[data-id="sie_countryofcharger.fieldControl-LookupResultsDropdown_sie_countryofcharger_selected_tag_text"]') || document.querySelector('[id*="sie_countryofcharger"][id*="selected_tag_text"]'));
+  function ticketId() {
+    const e = document.querySelector('[data-id="ticketnumber.fieldControl-text-box-text"]') || document.querySelector('[id*="ticketnumber"][id*="text-input-component"]');
+    const v = norm(e && (e.value || e.textContent));
+    if (v) return v;
+    const t = document.querySelector(TITLE_SEL);
+    const m = t && /^ID\s*(\d+)/i.exec(t.value);
+    return m ? m[1] : '';
+  }
+  function assetSerial() {
+    for (const c of document.querySelectorAll('[data-automationid="ListCell"]')) {
+      const h = visible(c) && c.querySelector('span[class*="headerText"] .ms-TooltipHost');
+      const n = h && [...h.childNodes].find((x) => x.nodeType === 3 && norm(x.nodeValue));
+      if (n) return norm(n.nodeValue);
+    }
+    return '';
+  }
+  const deviceId = () => { const i = qv('input[aria-label="Device ID"]'); return i ? norm(i.value || i.getAttribute('title')) : ''; };
+
+  let ticketHost = null, ticketBusy = false, ticketDlg = null;
+  async function startTicket(btn) {
+    if (ticketBusy) return;
+    ticketBusy = true; btn.disabled = true;
+    try {
+      const cc = countryToCode(countryName());
+      if (!cc) {
+        const r = await chrome.runtime.sendMessage({ type: 'run-option', id: 'def_1' });
+        if (!r || !r.ok) toast([tr('Ticket'), (r && r.error) || tr('Could not open the ticket generator.')], true);
+        return;
+      }
+      const id = ticketId();
+      const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
+      if (!tabP || !tabM) { toast([tr('Ticket'), tr('Product and Main tabs not found.')], true); return; }
+      realClick(tabP);
+      const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
+      const serial = await waitFor(assetSerial, 3500) || '';
+      const ch = detectCharger(fam);
+      const dev = ch.key === 'SI-D' ? (await waitFor(deviceId, 4000)) || '' : '';
+      realClick(tabM);
+      const input = await waitFor(() => qv(TITLE_SEL), 6000);
+      if (!input) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
+      openTicketDialog({ id, cc, charger: ch, serial, dev, fam: fam || '', rest: (() => { const i = input.value.lastIndexOf(']'); return i >= 0 ? input.value.slice(i + 1).trim() : ''; })() });
+    } catch (e) {
+      console.warn('Radial: ticket', e);
+      toast([tr('Ticket'), String(e && e.message || e)], true);
+    } finally { ticketBusy = false; btn.disabled = false; }
+  }
+
+  function openTicketDialog(d) {
+    if (ticketDlg) ticketDlg.remove();
+    ticketDlg = document.createElement('div');
+    const r = ticketDlg.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = `.bg{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+      .box{width:min(640px,92vw);background:#fff;color:#242424;border-radius:8px;box-shadow:0 12px 48px rgba(0,0,0,.35);padding:18px 20px}
+      h2{margin:0 0 12px;font-size:16px}label{display:block;font-size:12px;font-weight:600;margin:10px 0 4px;color:#555}
+      .row{display:flex;gap:10px}.row>div{flex:1}input,select{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #8a8886;border-radius:4px;font:inherit;background:#fff;color:#242424}
+      .pre{font:13px Consolas,monospace;background:#f3f2f1;border-radius:4px;padding:6px 8px;word-break:break-all}.note{font-size:12px;color:#555;margin-top:8px}
+      .act{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}button{font:inherit;padding:6px 20px;border-radius:4px;border:1px solid #8a8886;background:#f0f0f0;color:#242424;cursor:pointer}
+      button.p{background:#0f6cbd;border-color:#0f6cbd;color:#fff}
+      @media(prefers-color-scheme:dark){.box{background:#292929;color:#eee}input,select{background:#1f1f1f;color:#eee;border-color:#666}.pre{background:#1f1f1f}label,.note{color:#bbb}button{background:#3a3a3a;color:#eee;border-color:#666}button.p{background:#0f6cbd}}`;
+    const bg = document.createElement('div'); bg.className = 'bg';
+    const box = document.createElement('div'); box.className = 'box'; box.setAttribute('role', 'dialog');
+    box.innerHTML = '<h2></h2><div class="row"><div><label data-k="ch"></label><select id="ch"></select></div><div><label data-k="sn"></label><input id="sn" spellcheck="false"></div></div><label data-k="pre"></label><div class="pre" id="pre"></div><label data-k="rest"></label><input id="rest" spellcheck="false"><div class="note" id="note"></div><div class="act"><button type="button" id="cn"></button><button type="button" class="p" id="ap"></button></div>';
+    const $ = (q) => box.querySelector(q);
+    $('h2').textContent = tr('Ticket title');
+    $('[data-k=ch]').textContent = tr('Charger'); $('[data-k=sn]').textContent = tr('Serial number');
+    $('[data-k=pre]').textContent = tr('Title start'); $('[data-k=rest]').textContent = tr('Text after the serial number');
+    CHARGERS.forEach((c) => { const o = document.createElement('option'); o.value = c.key; o.textContent = c.label; $('#ch').appendChild(o); });
+    $('#ch').value = d.charger.key; $('#sn').value = d.serial; $('#rest').value = d.rest;
+    $('#cn').textContent = tr('Cancel'); $('#ap').textContent = tr('Apply');
+    const cur = () => CHARGERS.find((c) => c.key === $('#ch').value) || d.charger;
+    const prefix = () => `ID${d.id}-${cur().area}/${cur().key}/${d.cc}-[${norm($('#sn').value) || 'NULL'}]`;
+    const note = () => {
+      const bits = [];
+      if (d.fam) bits.push(tr('Product family: {name}', { name: d.fam }));
+      if (cur().key === 'SI-D') bits.push(d.dev ? tr('Device ID {id} will go into Charger ID.', { id: d.dev }) : tr('Device ID not found.'));
+      $('#note').textContent = bits.join(' · ');
+      $('#pre').textContent = prefix();
+    };
+    $('#ch').onchange = note; $('#sn').oninput = note; note();
+    const close = () => { ticketDlg.remove(); ticketDlg = null; };
+    const apply = () => {
+      const t = document.querySelector(TITLE_SEL);
+      if (!t) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
+      const full = (prefix() + ' ' + norm($('#rest').value)).trim();
+      typeInto(t, full); t.dispatchEvent(new Event('change', { bubbles: true }));
+      if (cur().key === 'SI-D' && d.dev) {
+        const c = document.querySelector('input[data-id="sie_chargerid.fieldControl-text-box-text"]');
+        if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
+      }
+      close();
+    };
+    $('#ap').onclick = apply; $('#cn').onclick = close;
+    bg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') close(); else if (e.key === 'Enter' && e.target.id !== 'ch') { e.preventDefault(); apply(); } });
+    bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
+    bg.appendChild(box); r.append(st, bg); document.body.appendChild(ticketDlg);
+    setTimeout(() => $('#rest').focus(), 50);
+  }
+
+  function ticketTick() {
+    const h1 = settings.ticketBtn !== false && hostOk() && qv('[data-id="header_title"]');
+    const on = h1 && qv('li[data-id="tablist-tabProduct"]');
+    if (!on) { if (ticketHost) { ticketHost.remove(); ticketHost = null; } return; }
+    if (ticketHost && ticketHost.isConnected && ticketHost.previousElementSibling === h1) return;
+    if (ticketHost) ticketHost.remove();
+    ticketHost = document.createElement('div');
+    const r = ticketHost.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = ':host{display:inline-block;margin-left:12px;vertical-align:middle}button{font:400 13px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:4px 14px;border:1px solid #8a8886;border-radius:4px;background:#f0f0f0;color:#242424;cursor:pointer}button:hover{background:#e1e1e1}button:disabled{opacity:.6;cursor:default}';
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Ticket'); b.onclick = () => startTicket(b);
+    r.append(st, b);
+    h1.insertAdjacentElement('afterend', ticketHost);
+  }
+
   async function tick() {
     try { dropQueue(); } catch (_) { /* ignora */ }
     try { rcTick(); } catch (_) { /* ignora */ }
+    try { ticketTick(); } catch (_) { /* ignora */ }
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }
