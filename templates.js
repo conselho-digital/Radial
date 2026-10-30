@@ -15,7 +15,8 @@
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
   const OLD_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex Team | eMobility TS SiFlex Team\nFlex Team | eMobility TS Flex Team\nTS Legacy Team | eMobility TS Legacy Siemens Team';
-  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team\nFlex | eMobility TS Flex Team\nTS Legacy | eMobility TS Legacy Siemens Team';
+  const PREV_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team\nFlex | eMobility TS Flex Team\nTS Legacy | eMobility TS Legacy Siemens Team';
+  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
   let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, assignBtns: true, assignQueues: DEFAULT_QUEUES, emailTplKeep: 15, emailTplSee: 8 };
@@ -1018,8 +1019,9 @@
   const QUEUE_COLORS = ['#0f6cbd', '#8764b8', '#038387', '#ca5010', '#498205', '#c239b3', '#5c2e91', '#0b6a0b'];
   const ASSIGN_DD = 'button[data-id="rdoMe_id.fieldControl-option-set-select"]';
   const ASSIGN_INPUT = 'input[data-id="systemuserview_id.fieldControl-LookupResultsDropdown_systemuserview_id_textInputBox_with_filter_new"]';
-  const parseQueues = () => String(settings.assignQueues == null || settings.assignQueues === OLD_QUEUES ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
-    .map((l) => { const i = l.indexOf('|'); return i < 0 ? null : { label: norm(l.slice(0, i)), text: norm(l.slice(i + 1)).replace(/^\*+/, '').trim() }; })
+  // Linha: "Botão | Conteúdo" ou "Botão | Conteúdo | L" (L = lado esquerdo da janela; sem isso, lado direito)
+  const parseQueues = () => String(settings.assignQueues == null || settings.assignQueues === OLD_QUEUES || settings.assignQueues === PREV_QUEUES ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
+    .map((l) => { const p = l.split('|').map(norm); return p.length < 2 ? null : { label: p[0], text: p[1].replace(/^\*+/, '').trim(), left: /^l(eft)?$/i.test(p[2] || '') }; })
     .filter((q) => q && q.label && q.text);
   const TR_COUNTRIES = new Set(['AE', 'SA', 'QA', 'KW', 'TH', 'SG', 'NZ', 'AU']);
   const titleCountry = () => { const m = /\/([A-Za-z]{2})-\[/.exec(caseTitleText()); return m ? m[1].toUpperCase() : ''; };
@@ -1074,39 +1076,51 @@
     } finally { assignBusy = false; }
   }
 
+  function makeQueueHost(list, left) {
+    const host = document.createElement('div');
+    const sr = host.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = ':host{position:fixed;z-index:2147483000}.col{display:flex;flex-direction:column;gap:8px}.row{display:flex;align-items:center;gap:8px}.row.l{flex-direction:row-reverse}.row button{width:130px;flex:none;font:600 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;text-align:center;padding:6px 14px;border:0;border-radius:4px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)}.row button:hover{filter:brightness(.88)}.row button:active{filter:brightness(.78)}.t{font:400 12px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;background:#fff;color:#242424;padding:6px 10px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer}';
+    const col = document.createElement('div'); col.className = 'col';
+    list.forEach((q) => {
+      const row = document.createElement('div'); row.className = left ? 'row l' : 'row';
+      const b = document.createElement('button'); b.type = 'button'; b.title = '*' + q.text; b.style.background = q.color; b.textContent = q.label;
+      b.onclick = () => runAssign(q.text);
+      const t = document.createElement('span'); t.className = 't'; t.textContent = q.text; t.title = '*' + q.text;
+      t.onclick = () => runAssign(q.text);
+      row.append(b, t);
+      col.appendChild(row);
+    });
+    sr.append(st, col);
+    document.body.appendChild(host);
+    return host;
+  }
+
+  let assignHostL = null;
   function assignTick() {
     const dlg = settings.assignBtns !== false && hostOk() && assignDialog();
-    if (!dlg) { if (assignHost) { assignHost.remove(); assignHost = null; assignKey = ''; } return; }
+    if (!dlg) {
+      for (const h of [assignHost, assignHostL]) if (h) h.remove();
+      assignHost = assignHostL = null; assignKey = '';
+      return;
+    }
     const box = dlg.querySelector('[id^="dialogContentContainer"]') || dlg;
     const r = box.getBoundingClientRect();
     const cc = titleCountry();
-    const list = parseQueues().map((q, i) => ({ ...q, color: QUEUE_COLORS[i % QUEUE_COLORS.length] }));
+    const all = parseQueues().map((q, i) => ({ ...q, color: QUEUE_COLORS[i % QUEUE_COLORS.length] }));
     // EAU, Arábia Saudita, Catar, Kuwait, Tailândia, Singapura, Nova Zelândia e Austrália são atendidos pelo RC-TR
     const rc = TR_COUNTRIES.has(cc) ? 'TR' : cc;
-    if (rc) list.push({ label: 'RC-' + rc, text: 'eMobility RC-' + rc, color: '#d13438' });
-    const key = JSON.stringify(list);
-    if (!assignHost || !assignHost.isConnected || key !== assignKey) {
-      if (assignHost) assignHost.remove();
+    if (rc) all.push({ label: 'RC-' + rc, text: 'eMobility RC-' + rc, color: '#d13438', left: false });
+    const right = all.filter((q) => !q.left), left = all.filter((q) => q.left);
+    const key = JSON.stringify(all);
+    if (key !== assignKey || (right.length && !(assignHost && assignHost.isConnected)) || (left.length && !(assignHostL && assignHostL.isConnected))) {
+      for (const h of [assignHost, assignHostL]) if (h) h.remove();
       assignKey = key;
-      assignHost = document.createElement('div');
-      const sr = assignHost.attachShadow({ mode: 'open' });
-      const st = document.createElement('style');
-      st.textContent = ':host{position:fixed;z-index:2147483000}.col{display:flex;flex-direction:column;gap:8px}button{font:600 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;text-align:center;padding:6px 14px;border:0;border-radius:4px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)}button:hover{filter:brightness(.88)}button:active{filter:brightness(.78)}button:disabled{opacity:.6;cursor:default}.row{display:flex;align-items:center;gap:8px}.row button{width:130px;flex:none}.t{font:400 12px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;background:#fff;color:#242424;padding:6px 10px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer}';
-      const col = document.createElement('div'); col.className = 'col';
-      list.forEach((q) => {
-        const row = document.createElement('div'); row.className = 'row';
-        const b = document.createElement('button'); b.type = 'button'; b.title = '*' + q.text; b.style.background = q.color; b.textContent = q.label;
-        b.onclick = () => runAssign(q.text);
-        const t = document.createElement('span'); t.className = 't'; t.textContent = q.text; t.title = '*' + q.text;
-        t.onclick = () => runAssign(q.text);
-        row.append(b, t);
-        col.appendChild(row);
-      });
-      sr.append(st, col);
-      document.body.appendChild(assignHost);
+      assignHost = right.length ? makeQueueHost(right, false) : null;
+      assignHostL = left.length ? makeQueueHost(left, true) : null;
     }
-    assignHost.style.left = Math.round(r.right + 12) + 'px';
-    assignHost.style.top = Math.round(r.top) + 'px';
+    if (assignHost) { assignHost.style.left = Math.round(r.right + 12) + 'px'; assignHost.style.top = Math.round(r.top) + 'px'; }
+    if (assignHostL) { assignHostL.style.right = Math.round(window.innerWidth - r.left + 12) + 'px'; assignHostL.style.top = Math.round(r.top) + 'px'; }
   }
 
   function ticketTick() {
