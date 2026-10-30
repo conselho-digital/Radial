@@ -754,10 +754,10 @@
     } finally { clearBusy = false; btn.disabled = false; }
   }
   function clearTick() {
-    const ul = settings.ticketBtn !== false && hostOk() && PRODUCT_LISTS.map(lookupList).find(Boolean);
-    const sec = ul && ul.closest('section');
-    if (!sec) { if (clearHost) { clearHost.remove(); clearHost = null; } return; }
-    if (clearHost && clearHost.isConnected && clearHost.parentElement === sec) return;
+    const h2 = settings.ticketBtn !== false && hostOk() && qv('h2[data-id="form-sectionHeader-sectionProductInformation"]');
+    const sec = h2 && (h2.closest('section') || h2.parentElement);
+    if (!h2) { if (clearHost) { clearHost.remove(); clearHost = null; } return; }
+    if (clearHost && clearHost.isConnected && clearHost.previousElementSibling === h2) return;
     if (clearHost) clearHost.remove();
     if (getComputedStyle(sec).position === 'static') sec.style.position = 'relative';
     clearHost = document.createElement('div');
@@ -767,7 +767,7 @@
     const b = document.createElement('button'); b.type = 'button'; b.textContent = '×';
     b.title = b.ariaLabel = tr('Clear product fields'); b.onclick = () => clearProduct(b);
     r.append(st, b);
-    sec.appendChild(clearHost);
+    h2.insertAdjacentElement('afterend', clearHost);
   }
 
   function ticketTick() {
