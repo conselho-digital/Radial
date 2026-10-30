@@ -909,11 +909,10 @@
   }
   // First Response Sent diferente de "Yes" (e o campo existe): o link leva uma linha antes, conforme o carregador.
   function slaPrefix(title) {
+    const word = /\/SI-UC\//i.test(title) ? 'Sicharge UC SLA⭐' : /\/SI-D\//i.test(title) ? 'Sicharge-D SLA  ✨' : '';
+    if (!word) return '';                      // só SI-D e SI-UC verificam o First Response Sent
     const f = qv('input[aria-label="First Response Sent"]');
-    if (!f || norm(f.value).toLowerCase() === 'yes') return '';
-    if (/\/SI-UC\//i.test(title)) return 'Sicharge UC SLA⭐';
-    if (/\/SI-D\//i.test(title)) return 'Sicharge-D SLA  ✨';
-    return '';
+    return !f || norm(f.value).toLowerCase() === 'yes' ? '' : word;
   }
   async function copyRich(title, url, prefix) {
     const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
