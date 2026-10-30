@@ -859,7 +859,7 @@
         if (!d.charger || d.charger.key === 'SI-D') d.dev = (await waitFor(deviceId, 2000)) || '';
       }
     }
-    if (!d.sw && !d.swFamily) ui.item('asset', tr('Main Asset'), d.serial ? 'ok' : 'skip', d.serial ? tr('Serial {n}', { n: d.serial }) : tr('No serial found'));
+    if (!d.sw && !d.swFamily) ui.item('asset', tr('Main Asset'), d.serial ? 'ok' : 'miss', d.serial ? tr('Serial {n}', { n: d.serial }) : tr('No serial found'));
     d.serialFound = !!d.serial;           // sem serial não há asset: não pergunta o Device ID
     await goMain();
     const input = await waitFor(() => qv(TITLE_SEL), 3000);
@@ -899,7 +899,7 @@
       .cb{width:18px;height:18px;flex:none;margin-top:1px;border:2px solid #005f6b;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font:bold 12px/1 sans-serif;transition:background .15s,border-color .15s}
       li.run .cb{border-radius:50%;border-top-color:transparent;animation:sp .7s linear infinite}
       li.ok .cb{background:#2e7d32;border-color:#2e7d32;animation:pop .32s ease-out}
-      li.skip .cb{background:#e0e0e0;border-color:#9e9e9e;color:#777}li.skip{color:#777}
+      li.miss .cb{background:#f9a825;border-color:#f9a825;animation:pop .32s ease-out}
       li.bad .cb{background:#c4314b;border-color:#c4314b;animation:pop .32s ease-out}
       .lt b{font-weight:600}.lt small{display:block;color:#555;font-size:11px;margin-top:1px;word-break:break-word}
       .body{padding:14px}
@@ -1008,8 +1008,8 @@
       item(key, label, state, detail) {
         alive();
         let li = items[key];
-        // só entra na lista quando a informação foi pega (ok) ou deu erro; "rodando" e "pulado" não aparecem
-        if (state === 'run' || state === 'skip') { if (li) { li.remove(); delete items[key]; } return; }
+        // entra na lista quando a informação foi pega (ok), faltou (miss) ou deu erro (bad); "rodando" e "hide" não aparecem
+        if (state === 'run' || state === 'hide') { if (li) { li.remove(); delete items[key]; } return; }
         if (!li) {
           li = items[key] = mk('li');
           const lt = mk('span', 'lt'); lt.append(mk('b', null, label), mk('small'));
@@ -1017,7 +1017,7 @@
           cl.appendChild(li);
         }
         li.className = state;
-        li.firstChild.textContent = { ok: '✓', bad: '!', skip: '–' }[state] || '';
+        li.firstChild.textContent = { ok: '✓', bad: '!', miss: '?' }[state] || '';
         const sm = li.querySelector('small'); sm.textContent = detail || ''; sm.style.display = detail ? 'block' : 'none';
       },
       setPart(i, text) { if (i < T.typed || T.parts[i] != null) return; T.parts[i] = text; flush(); },
@@ -1156,7 +1156,7 @@
     ui.step(tr('Checking Priority')); ui.item('prio', tr('Priority'), 'run');
     try {
       const p = await priorityHigh();
-      ui.item('prio', tr('Priority'), p ? 'ok' : 'skip', p ? p : tr('Not needed'));
+      ui.item('prio', tr('Priority'), p ? 'ok' : 'hide', p);
     } catch (e) { ui.item('prio', tr('Priority'), 'bad', msg(e)); }
     // 2. Save
     ui.step(tr('Saving the case')); ui.item('save', tr('Save'), 'run');
@@ -1202,16 +1202,16 @@
     if (d.charger && d.charger.key === 'SI-D') {
       ui.setPct(78);
       if (d.dev) ui.item('dev', tr('Charger ID'), 'ok', d.dev);
-      else if (!d.serialFound) ui.item('dev', tr('Charger ID'), 'skip', tr('No asset'));
+      else if (!d.serialFound) ui.item('dev', tr('Charger ID'), 'miss', tr('No asset'));
       else {
-        ui.item('dev', tr('Charger ID'), 'run', tr('Not found'));
+        ui.item('dev', tr('Charger ID'), 'miss', tr('Not found'));
         const a = await askDevice(ui);
         d.dev = a.dev; addDev = a.add;
         if (addDev) {
           ui.step(tr('Saving the Charger ID on the asset…'));
           try { await addDeviceToAsset(d.dev); } catch (e) { toast([tr('Device ID'), msg(e)], true, 8000); }
         }
-        ui.item('dev', tr('Charger ID'), d.dev ? 'ok' : 'skip', d.dev ? d.dev + (addDev ? ' · ' + tr('added to the asset') : '') : tr('Skipped'));
+        ui.item('dev', tr('Charger ID'), d.dev ? 'ok' : 'miss', d.dev ? d.dev + (addDev ? ' · ' + tr('added to the asset') : '') : tr('Skipped'));
       }
     }
     // 6. Título
