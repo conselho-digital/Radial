@@ -109,7 +109,7 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: true, removeQueue: true, rcBtn: false, sicLogs: true, ticketBtn: true, emailTplKeep: 15, emailTplSee: 8 };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: true, removeQueue: true, rcBtn: false, sicLogs: true, ticketBtn: true, shareCopy: true, emailTplKeep: 15, emailTplSee: 8 };
 let cfg = { ...DEFAULTS };
 let recording = false;
 
@@ -143,6 +143,7 @@ function showCfg() {
   $('rcBtn').checked = !!cfg.rcBtn;
   $('sicLogs').checked = cfg.sicLogs !== false;
   $('ticketBtn').checked = cfg.ticketBtn !== false;
+  $('shareCopy').checked = cfg.shareCopy !== false;
   if (document.activeElement !== $('emailTplKeep')) $('emailTplKeep').value = cfg.emailTplKeep || 15;
   if (document.activeElement !== $('emailTplSee')) $('emailTplSee').value = cfg.emailTplSee || 8;
   $('removeQueue').checked = !!cfg.removeQueue;
@@ -198,6 +199,7 @@ $('autoPwInput').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(
 $('removeQueue').onchange = () => { cfg.removeQueue = $('removeQueue').checked; saveCfg(); };
 $('emailTplSee').onchange = () => { cfg.emailTplSee = Math.min(30, Math.max(1, parseInt($('emailTplSee').value, 10) || 8)); showCfg(); saveCfg(); };
 $('emailTplKeep').onchange = () => { cfg.emailTplKeep = Math.min(30, Math.max(1, parseInt($('emailTplKeep').value, 10) || 15)); showCfg(); saveCfg(); };
+$('shareCopy').onchange = () => { cfg.shareCopy = $('shareCopy').checked; saveCfg(); };
 $('ticketBtn').onchange = () => { cfg.ticketBtn = $('ticketBtn').checked; saveCfg(); };
 $('sicLogs').onchange = () => { cfg.sicLogs = $('sicLogs').checked; saveCfg(); };
 $('rcBtn').onchange = () => { cfg.rcBtn = $('rcBtn').checked; saveCfg(); };

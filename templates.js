@@ -16,7 +16,7 @@
 
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
-  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, emailTplKeep: 15, emailTplSee: 8 };
+  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, emailTplKeep: 15, emailTplSee: 8 };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => hostKey() === HOST || hostKey().endsWith('.' + HOST);
   const enabled = () => !!settings.emailTpl && hostOk();
@@ -866,6 +866,53 @@
     r.append(st, b);
     wrap.appendChild(swapHost);
   }
+
+  // ---------- Botão Share: o lado esquerdo copia o link do caso (título + link); a setinha abre o menu ----------
+  function caseLink() {
+    const u = location.href;
+    if (!/[?&]etn=incident&id=/i.test(u)) return '';
+    if (/[?&]pagetype=/i.test(u)) return u;
+    return u.replace(/&etn=incident&id=/i, '&pagetype=entityrecord&etn=incident&id=');
+  }
+  function caseTitleText() {
+    const h = qv('[data-id="header_title"]');
+    const t = h && norm(h.getAttribute('title') || h.textContent);
+    if (t) return t;
+    const i = document.querySelector(TITLE_SEL);
+    return i ? norm(i.value) : '';
+  }
+  async function copyRich(title, url) {
+    const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const html = `<a href="${esc(url)}">${esc(title || url)}</a>`;
+    const text = title ? `${title} - ${url}` : url;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
+      return true;
+    } catch (_) {
+      const box = document.createElement('div');
+      box.contentEditable = 'true'; box.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:pre';
+      box.innerHTML = html; document.body.appendChild(box);
+      const range = document.createRange(); range.selectNodeContents(box);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (_) { /* ignora */ }
+      sel.removeAllRanges(); box.remove();
+      return ok;
+    }
+  }
+  document.addEventListener('click', async (e) => {
+    if (settings.shareCopy === false || !hostOk() || !e.isTrusted) return;
+    const b = e.target.closest && e.target.closest('button[id^="collaborationShareButton"]');
+    if (!b) return;
+    const arrow = b.querySelector('.fui-MenuButton__menuIcon');
+    const r = arrow && arrow.getBoundingClientRect();
+    if (r && e.clientX >= r.left - 6) return;          // setinha: abre o menu normalmente
+    const url = caseLink();
+    if (!url) return;                                  // não é um caso: comportamento normal
+    e.preventDefault(); e.stopImmediatePropagation();
+    const ok = await copyRich(caseTitleText(), url);
+    toast([ok ? tr('Ticket link copied') : tr('Could not copy the link.')], !ok, 2500);
+  }, true);
 
   function ticketTick() {
     const lab = settings.ticketBtn !== false && hostOk() && qv('div[title^="Case Title"] > label');
