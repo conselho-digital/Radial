@@ -1091,7 +1091,7 @@
       assignHost = document.createElement('div');
       const sr = assignHost.attachShadow({ mode: 'open' });
       const st = document.createElement('style');
-      st.textContent = ':host{position:fixed;z-index:2147483000}.col{display:flex;flex-direction:column;gap:8px}button{font:600 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;text-align:left;padding:6px 14px;border:0;border-radius:4px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3);min-width:150px}button:hover{filter:brightness(.88)}button:active{filter:brightness(.78)}button:disabled{opacity:.6;cursor:default}';
+      st.textContent = ':host{position:fixed;z-index:2147483000}.col{display:flex;flex-direction:column;gap:8px}button{font:600 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;text-align:center;padding:6px 14px;border:0;border-radius:4px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3);min-width:150px}button:hover{filter:brightness(.88)}button:active{filter:brightness(.78)}button:disabled{opacity:.6;cursor:default}';
       const col = document.createElement('div'); col.className = 'col';
       list.forEach((q) => {
         const b = document.createElement('button'); b.type = 'button'; b.textContent = q.label; b.title = '*' + q.text; b.style.background = q.color;
