@@ -322,12 +322,26 @@
     if (!n) throw new StepError('"Troubleshooting" item in the email body');
   }
 
+  // Assunto do e-mail: apaga tudo que vier antes do "ID<número>" ("RE: ID0547734-…" vira "ID0547734-…").
+  const SUBJECT = 'input[data-id="subject.fieldControl-text-box-text"]';
+  async function fixSubject() {
+    const inp = await waitFor(() => qv(SUBJECT), 3000);
+    if (!inp) return;
+    await sleep(600);                     // o template pode reescrever o assunto logo depois do OK
+    for (let n = 0; n < 2; n++) {
+      const v = inp.value, m = /\bID\d+/.exec(v);
+      if (m && m.index > 0) { typeInto(inp, v.slice(m.index)); inp.dispatchEvent(new Event('change', { bubbles: true })); }
+      await sleep(500);
+    }
+  }
+
   async function apply(it) {
     if (working) return;
     working = true; status = tr('Applying…'); lastErr = null; render();
     try {
       try { await chrome.runtime.sendMessage({ type: 'tpl-clear-top', wipeAll: WIPE_TEMPLATE.test(it.name) }); } catch (_) { /* segue sem limpar */ }
       await applyTemplate(it.name);
+      await fixSubject();
       used(it); items = rank(); await saveHist();
       if (RC_TEMPLATE.test(it.name)) await fillRC();
       if (TS_TEMPLATE.test(it.name)) await dropTroubleshooting();
