@@ -891,7 +891,7 @@
       .hd{background:#005f6b;color:#fff;padding:9px 12px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;font-weight:bold;font-size:13px;letter-spacing:.5px;cursor:move;user-select:none;touch-action:none}
       .x{cursor:pointer;font-size:24px;line-height:1;font-weight:normal;color:rgba(255,255,255,.7);background:none;border:0;padding:0 2px}.x:hover{color:#fff}
       .sub{font-size:11px;font-weight:600;color:#555;padding:8px 14px 0;text-transform:uppercase;letter-spacing:.4px}
-      .cl{list-style:none;margin:0;padding:4px 14px 12px;min-height:90px}
+      .cl{list-style:none;margin:0;padding:8px 14px 12px;min-height:60px}
       .cl li{display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:1px dashed #cfd8dc;font-size:13px;animation:in .28s ease-out}
       .cl li:last-child{border-bottom:0}
       .cb{width:18px;height:18px;flex:none;margin-top:1px;border:2px solid #005f6b;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font:bold 12px/1 sans-serif;transition:background .15s,border-color .15s}
@@ -930,7 +930,7 @@
     const hl = mk('div', 'hd'); hl.append(mk('span', null, tr('Checks')));
     const xl = mk('button', 'x', '×'); xl.type = 'button'; xl.setAttribute('aria-label', 'Close'); hl.appendChild(xl);
     const cl = mk('ul', 'cl');
-    wl.append(hl, mk('div', 'sub', tr('Not in the title')), cl);
+    wl.append(hl, cl);
     // janela da direita: título
     const wr = mk('div', 'win');
     const hr = mk('div', 'hd'); hr.append(mk('span', null, 'Ticket Generator'));
@@ -1006,6 +1006,8 @@
       item(key, label, state, detail) {
         alive();
         let li = items[key];
+        // só entra na lista quando a informação foi pega (ok) ou deu erro; "rodando" e "pulado" não aparecem
+        if (state === 'run' || state === 'skip') { if (li) { li.remove(); delete items[key]; } return; }
         if (!li) {
           li = items[key] = mk('li');
           const lt = mk('span', 'lt'); lt.append(mk('b', null, label), mk('small'));
