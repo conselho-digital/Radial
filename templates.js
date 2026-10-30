@@ -1062,28 +1062,28 @@
     const TAG = '[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_selected_tag"]';
     const count = () => { const d = getDlg(); return d ? d.querySelectorAll(TAG).length : 0; };
     const inputOf = () => { const d = getDlg(); const i = (d && d.querySelector(QUEUE_INPUT)) || qv(QUEUE_INPUT); return i && visible(i) ? i : null; };
+    const trace = [];
+    const desc = (e) => !e ? 'none' : (e.tagName || '?') + (e.getAttribute && (e.getAttribute('data-id') || e.getAttribute('aria-label')) ? '[' + String(e.getAttribute('data-id') || e.getAttribute('aria-label')).slice(-34) + ']' : '');
+    let keyErr = '';
+    const real = async (keys) => { try { const r = await chrome.runtime.sendMessage({ type: 'press-keys', keys }); if (!r || !r.ok) keyErr = (r && r.error) || 'no response'; } catch (e) { keyErr = String(e && e.message || e); } };
     if (count()) {
-      // 1) Delete simulado na etiqueta com foco; 2) Delete de verdade (teclado do navegador) com o foco na etiqueta;
-      // 3) Tab + Delete de verdade, começando do botão fechar (o que você faz à mão)
-      const d = getDlg(); const tag = d.querySelector(TAG);
-      tag.focus();
-      ['keydown', 'keyup'].forEach((t) => tag.dispatchEvent(new KeyboardEvent(t, { key: 'Delete', code: 'Delete', keyCode: 46, which: 46, bubbles: true, cancelable: true })));
-      let dbg = '';
-      const real = async (keys) => { try { const r = await chrome.runtime.sendMessage({ type: 'press-keys', keys }); if (r && !r.ok) dbg = r.error || ''; } catch (e) { dbg = String(e && e.message || e); } };
-      if (!(await waitFor(() => !count(), 500, 40))) {
-        const t2 = getDlg() && getDlg().querySelector(TAG); if (t2) t2.focus();
-        await real(['Delete']);
-        await waitFor(() => !count(), 1200, 40);
+      // O mesmo que você faz à mão: foco no começo da janela, Tab (cai na etiqueta da fila), Delete. Teclas de verdade do navegador.
+      const d = getDlg();
+      (d.querySelector('[data-id="dialogCloseIconButton"]') || d).focus();
+      await real(['Tab']);
+      trace.push('tab->' + desc(document.activeElement));
+      if (!document.activeElement || !document.activeElement.matches || !document.activeElement.matches(TAG)) {
+        const t = getDlg() && getDlg().querySelector(TAG); if (t) t.focus();
+        trace.push('focus->' + desc(document.activeElement));
       }
-      if (count()) {
-        const close = getDlg() && getDlg().querySelector('[data-id="dialogCloseIconButton"]'); (close || getDlg()).focus();
-        await real(['Tab', 'Delete']);
-        await waitFor(() => !count(), 1200, 40);
-      }
-      if (count() && dbg) throw new Error(tr('Keyboard not available: {msg}', { msg: dbg }));
+      await real(['Delete']);
+      await waitFor(() => !count(), 1500, 40);
+      trace.push('left=' + count());
+      if (keyErr) trace.push('keys:' + keyErr);
     }
+    if (trace.length) console.log('Radial: add to queue', trace.join(' | '));
     const input = await waitFor(inputOf, 5000);
-    if (!input) throw new Error(tr('Queue box not found.') + (count() ? ' (' + tr('current queue could not be removed') + ')' : ''));
+    if (!input) throw new Error(tr('Queue box not found.') + (count() ? ' (' + tr('current queue could not be removed') + ')' : '') + (trace.length ? ' [' + trace.join(' | ') + ']' : ''));
     const okBtn = () => { const d = getDlg(); const b = d && d.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; };
     const ok = await pickLookup(input, text, '*' + text, () => !!okBtn());
     if (!ok) throw new Error(tr('No record found for "{name}".', { name: text }));
@@ -1109,7 +1109,7 @@
       realClick(go);
       if (!noQueue) await addToQueue(text);
     } catch (e) {
-      toast([tr('Assign'), String(e && e.message || e)], true, 8000);
+      toast([tr('Assign'), String(e && e.message || e)], true, 20000);
     } finally { assignBusy = false; }
   }
 
