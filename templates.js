@@ -770,6 +770,8 @@
     const pre = title.slice(0, m.index).replace(/[:\s]+$/, '').trim();
     return pre || 'Reopened_' + m[1];
   }
+  // Tabela de Assets carregada e vazia ("No data available", "0 - 0 of 0", "Rows: 0").
+  const assetsEmpty = () => [...document.querySelectorAll('div,span,p,label')].some((e) => e.children.length === 0 && visible(e) && /^(no data available|0\s*-\s*0\s*of\s*0|rows:\s*0)$/i.test(norm(e.textContent)));
   async function collectProduct(d) {
     const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
     if (!tabP || !tabM) throw new Error(tr('Product and Main tabs not found.'));
@@ -777,17 +779,26 @@
     const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
     d.fam = fam || '';
     // Família "Sifinity" (software): o tipo vem do campo Product (Sifinity Control, DepotFinity, Sifinity Go…).
-    const prodTag = await waitFor(() => { const u = lookupList('productid'); const e = u && u.querySelector('[data-id$="_selected_tag_text"]'); return e && textOf(e); }, 3000);
-    const prodSw = detectSoftware(prodTag);
+    const readProd = () => { const u = lookupList('productid'); const e = u && u.querySelector('[data-id$="_selected_tag_text"]'); return e ? textOf(e) : ''; };
     d.swFamily = /sifinity|depotfinity|software/i.test(d.fam);
+    const needProd = d.swFamily || !detectCharger(d.fam) && !detectSoftware(d.fam);
+    const prodTag = needProd ? (await waitFor(readProd, 1500)) || '' : readProd();   // só espera quando o Product decide o tipo
+    const prodSw = detectSoftware(prodTag);
     d.sw = detectSoftware(d.fam) || ((d.swFamily || !detectCharger(d.fam)) && prodSw) || null;
     d.charger = d.sw || d.swFamily ? null : detectCharger(d.fam);
     d.product = prodTag || '';
-    if (d.sw || d.swFamily) d.serial = (await waitFor(assetSerial, 2500)) || '';   // software: o asset costuma não existir
-    if (!d.sw && !d.swFamily) {
-      d.serial = (await waitFor(assetSerial, 7000)) || '';
-      if (!d.charger || d.charger.key === 'SI-D') d.dev = (await waitFor(deviceId, 4000)) || '';
-    }
+    // Serial: volta assim que achar; se a tabela de assets já carregou vazia, não espera mais
+    const waitSerial = async (max) => {
+      const t0 = Date.now();
+      for (;;) {
+        const v = assetSerial();
+        if (v) return v;
+        if (assetsEmpty() || Date.now() - t0 > max) return '';
+        await sleep(100);
+      }
+    };
+    d.serial = await waitSerial(d.sw || d.swFamily ? 1200 : 2500);
+    if (!d.sw && !d.swFamily && (!d.charger || d.charger.key === 'SI-D')) d.dev = (await waitFor(deviceId, 2000)) || '';
     realClick(tabM);
     const input = await waitFor(() => qv(TITLE_SEL), 6000);
     if (!input) throw new Error(tr('Case Title field not found.'));
