@@ -17,7 +17,8 @@
   const OLD_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex Team | eMobility TS SiFlex Team\nFlex Team | eMobility TS Flex Team\nTS Legacy Team | eMobility TS Legacy Siemens Team';
   const PREV_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team\nFlex | eMobility TS Flex Team\nTS Legacy | eMobility TS Legacy Siemens Team';
   const PREV2_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
-  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
+  const PREV3_QUEUES = 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
+  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex | L\nFlex | eMobility TS Flex | L\nTS Legacy | eMobility TS Legacy Siemens';
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
   let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, assignBtns: true, assignQueues: DEFAULT_QUEUES, emailTplKeep: 15, emailTplSee: 8 };
@@ -1038,7 +1039,7 @@
   const ASSIGN_DD = 'button[data-id="rdoMe_id.fieldControl-option-set-select"]';
   const ASSIGN_INPUT = 'input[data-id="systemuserview_id.fieldControl-LookupResultsDropdown_systemuserview_id_textInputBox_with_filter_new"]';
   // Linha: "Botão | Conteúdo" + marcas opcionais depois: L = lado esquerdo da janela; NQ = não faz o Add to Queue
-  const parseQueues = () => String(settings.assignQueues == null || [OLD_QUEUES, PREV_QUEUES, PREV2_QUEUES].includes(settings.assignQueues) ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
+  const parseQueues = () => String(settings.assignQueues == null || [OLD_QUEUES, PREV_QUEUES, PREV2_QUEUES, PREV3_QUEUES].includes(settings.assignQueues) ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
     .map((l) => { const p = l.split('|').map(norm); const fl = p.slice(2).map((x) => x.toUpperCase()); return p.length < 2 ? null : { label: p[0], text: p[1].replace(/^\*+/, '').trim(), left: fl.includes('L') || fl.includes('LEFT'), noQueue: fl.includes('NQ') }; })
     .filter((q) => q && q.label && q.text);
   const TR_COUNTRIES = new Set(['AE', 'SA', 'QA', 'KW', 'TH', 'SG', 'NZ', 'AU']);
