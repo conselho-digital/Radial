@@ -870,7 +870,6 @@
     try { rcTick(); } catch (_) { /* ignora */ }
     try { ticketTick(); } catch (_) { /* ignora */ }
     try { clearTick(); } catch (_) { /* ignora */ }
-    contactTick().catch(() => {});
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }
