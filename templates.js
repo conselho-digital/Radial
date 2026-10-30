@@ -634,20 +634,23 @@
     const leaf = [...document.querySelectorAll('li,div,span,p')].find((e) => e !== input && e.children.length === 0 && visible(e) && norm(e.textContent).toLowerCase().includes(text));
     return leaf ? (leaf.closest('[role="option"],[role="treeitem"],li') || leaf) : null;
   };
-  // Escreve, espera a lista e escolhe a primeira opção: Enter; se não escolheu (done() ainda falso), clica na linha;
-  // se ainda não, seta para baixo + Enter.
+  // Escreve e espera a lista. Sem done(): Enter na primeira opção (campos de país, Insert RC). Com done(): clica direto
+  // na primeira linha que contém o texto (rápido e certo); se não escolheu, Enter; se ainda não, seta para baixo + Enter.
   async function pickLookup(input, text, typed, done) {
     realClick(input);
     typeInto(input, typed || text);
     const want = text.toLowerCase();
-    const found = await waitFor(() => dropdownRow(input, want), 7000, 150);
+    const found = await waitFor(() => dropdownRow(input, want), 7000, 100);
     if (!found) { wipeInput(input); await sleep(300); return false; }
-    await sleep(300); pressKey(input, 'Enter'); await sleep(900);
-    if (done && !(await waitFor(done, 800, 100))) {
-      const row = firstRow(input, want);
-      if (row) { realClick(row); await sleep(900); }
-      if (!(await waitFor(done, 800, 100))) { pressKey(input, 'ArrowDown'); await sleep(250); pressKey(input, 'Enter'); await sleep(900); }
-    }
+    if (!done) { await sleep(300); pressKey(input, 'Enter'); await sleep(900); return true; }
+    await sleep(120);
+    const row = firstRow(input, want);
+    if (row) realClick(row);
+    if (await waitFor(done, 1200, 40)) return true;
+    pressKey(input, 'Enter');
+    if (await waitFor(done, 1000, 40)) return true;
+    pressKey(input, 'ArrowDown'); await sleep(200); pressKey(input, 'Enter');
+    await waitFor(done, 1200, 40);
     return true;
   }
   const COUNTRY_INPUT = 'input[data-id*="sie_countryofcharger"][data-id*="textInputBox"], [data-id*="sie_countryofcharger"] input[type="text"], [id*="sie_countryofcharger"] input[type="text"]';
@@ -1060,14 +1063,24 @@
     const count = () => { const d = getDlg(); return d ? d.querySelectorAll(TAG).length : 0; };
     const inputOf = () => { const d = getDlg(); const i = (d && d.querySelector(QUEUE_INPUT)) || qv(QUEUE_INPUT); return i && visible(i) ? i : null; };
     if (count()) {
-      // 1) tecla simulada na etiqueta; 2) se não adiantar, Tab + Delete de verdade (teclado do navegador)
+      // 1) Delete simulado na etiqueta com foco; 2) Delete de verdade (teclado do navegador) com o foco na etiqueta;
+      // 3) Tab + Delete de verdade, começando do botão fechar (o que você faz à mão)
       const d = getDlg(); const tag = d.querySelector(TAG);
       tag.focus();
       ['keydown', 'keyup'].forEach((t) => tag.dispatchEvent(new KeyboardEvent(t, { key: 'Delete', code: 'Delete', keyCode: 46, which: 46, bubbles: true, cancelable: true })));
-      if (!(await waitFor(() => !count(), 900, 50))) {
-        try { d.focus(); await chrome.runtime.sendMessage({ type: 'press-keys', keys: ['Tab', 'Delete'] }); } catch (_) { /* ignora */ }
-        await waitFor(() => !count(), 1500, 50);
+      let dbg = '';
+      const real = async (keys) => { try { const r = await chrome.runtime.sendMessage({ type: 'press-keys', keys }); if (r && !r.ok) dbg = r.error || ''; } catch (e) { dbg = String(e && e.message || e); } };
+      if (!(await waitFor(() => !count(), 500, 40))) {
+        const t2 = getDlg() && getDlg().querySelector(TAG); if (t2) t2.focus();
+        await real(['Delete']);
+        await waitFor(() => !count(), 1200, 40);
       }
+      if (count()) {
+        const close = getDlg() && getDlg().querySelector('[data-id="dialogCloseIconButton"]'); (close || getDlg()).focus();
+        await real(['Tab', 'Delete']);
+        await waitFor(() => !count(), 1200, 40);
+      }
+      if (count() && dbg) throw new Error(tr('Keyboard not available: {msg}', { msg: dbg }));
     }
     const input = await waitFor(inputOf, 5000);
     if (!input) throw new Error(tr('Queue box not found.') + (count() ? ' (' + tr('current queue could not be removed') + ')' : ''));
