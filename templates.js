@@ -798,6 +798,7 @@
       }
     };
     d.serial = await waitSerial(d.sw || d.swFamily ? 1200 : 2500);
+    d.serialFound = !!d.serial;           // sem serial não há asset: não pergunta o Device ID
     if (!d.sw && !d.swFamily && (!d.charger || d.charger.key === 'SI-D')) d.dev = (await waitFor(deviceId, 2000)) || '';
     realClick(tabM);
     const input = await waitFor(() => qv(TITLE_SEL), 6000);
@@ -860,7 +861,7 @@
       if (!d.cc) return askCountry();
       if (!d.sw && !d.charger) return askType(!!d.swFamily);
       if (!d.serial && !d.serialAsked) return askSerial();
-      if (d.charger && d.charger.key === 'SI-D' && !d.dev && !d.devAsked) return askDevice();
+      if (d.charger && d.charger.key === 'SI-D' && !d.dev && !d.devAsked && d.serialFound) return askDevice();
       return finalStep();
     }
     function askCountry() {
@@ -913,8 +914,9 @@
       setTimeout(() => { inp.focus(); inp.select(); }, 30);
     }
     function askDevice() {
-      body.append(mk('div', 'lbl', tr('Device ID not found')));
-      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the Device ID');
+      const head = mk('div', 'lbl', '"SiCharge D" - ' + tr('Charger ID not found')); head.style.textTransform = 'none';   // mantém o "SiCharge D" como escrito
+      body.append(head, mk('div', 'note', tr('Type the Charger ID')));
+      const inp = mk('input'); inp.spellcheck = false;
       body.appendChild(inp);
       const act = mk('div', 'act');
       const addB = mk('button', 'btn g', tr('Add')); addB.type = 'button'; addB.title = tr('Write this Device ID on the asset (Product tab) and save it');
@@ -923,6 +925,8 @@
       const go = () => { d.dev = norm(inp.value); d.devAsked = true; step(); };
       skip.onclick = () => { d.dev = ''; d.devAsked = true; step(); };
       ok.onclick = go;
+      ok.style.display = 'none';                                   // OK só aparece com algo digitado
+      inp.addEventListener('input', () => { ok.style.display = norm(inp.value) ? '' : 'none'; });
       addB.onclick = async () => {
         const v = norm(inp.value);
         if (!v) { inp.focus(); return; }
