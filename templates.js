@@ -323,16 +323,30 @@
   }
 
   // Assunto do e-mail: apaga tudo que vier antes do "ID<número>" ("RE: ID0547734-…" vira "ID0547734-…").
+  // Roda uma vez quando o rascunho abre e de novo depois de aplicar um template (o template pode reescrever o assunto).
   const SUBJECT = 'input[data-id="subject.fieldControl-text-box-text"]';
+  function cleanSubject(inp) {
+    const v = inp.value, m = /\bID\d+/.exec(v);
+    if (!m) return null;                                   // ainda sem ID: pode estar carregando
+    if (m.index > 0) { typeInto(inp, v.slice(m.index)); inp.dispatchEvent(new Event('change', { bubbles: true })); }
+    return true;
+  }
   async function fixSubject() {
     const inp = await waitFor(() => qv(SUBJECT), 3000);
     if (!inp) return;
-    await sleep(600);                     // o template pode reescrever o assunto logo depois do OK
-    for (let n = 0; n < 2; n++) {
-      const v = inp.value, m = /\bID\d+/.exec(v);
-      if (m && m.index > 0) { typeInto(inp, v.slice(m.index)); inp.dispatchEvent(new Event('change', { bubbles: true })); }
-      await sleep(500);
-    }
+    await sleep(600);
+    for (let n = 0; n < 2; n++) { cleanSubject(inp); await sleep(500); }
+  }
+  const subjectSeen = new WeakMap();
+  function subjectTick() {
+    if (!enabled()) return;
+    const s = isEmailDraft();
+    if (!s) return;
+    let st = subjectSeen.get(s);
+    if (!st) subjectSeen.set(s, (st = { t0: Date.now(), done: false }));
+    if (st.done || Date.now() - st.t0 > 15000) return;
+    const inp = qv(SUBJECT);
+    if (inp && cleanSubject(inp)) st.done = true;
   }
 
   async function apply(it) {
@@ -982,6 +996,7 @@
 
   async function tick() {
     try { dropQueue(); } catch (_) { /* ignora */ }
+    try { subjectTick(); } catch (_) { /* ignora */ }
     try { rcTick(); } catch (_) { /* ignora */ }
     try { ticketTick(); } catch (_) { /* ignora */ }
     try { clearTick(); } catch (_) { /* ignora */ }
