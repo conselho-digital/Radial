@@ -621,6 +621,16 @@
   let ticketHost = null, ticketBusy = false, ticketDlg = null, ticketRun = 0;
 
   // Passa pela aba Product (família, serial do asset, Device ID), volta a Main e lê o título atual.
+  // Título com "ID<número>" diferente do ticket atual = reaberto de outro ticket. Texto: o que vem antes desse ID
+  // ("Reopened_0506147:  Reopened_0506144:  Reopened_0506113:"), sem os dois-pontos finais; sem prefixo: "Reopened_<número>".
+  function reopenedText(title) {
+    const cur = String(ticketId()).replace(/\D/g, '').replace(/^0+/, '');
+    const m = /\bID\s*(\d+)(?=[-\s/])/i.exec(title);
+    if (!m || !cur) return '';
+    if (m[1].replace(/^0+/, '') === cur) return '';
+    const pre = title.slice(0, m.index).replace(/[:\s]+$/, '').trim();
+    return pre || 'Reopened_' + m[1];
+  }
   async function collectProduct(d) {
     const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
     if (!tabP || !tabM) throw new Error(tr('Product and Main tabs not found.'));
@@ -644,6 +654,7 @@
     if (!input) throw new Error(tr('Case Title field not found.'));
     const i = input.value.lastIndexOf(']');
     d.rest = i >= 0 ? input.value.slice(i + 1).trim() : norm(input.value);
+    d.reopened = reopenedText(input.value);
   }
 
   async function startTicket(btn) {
@@ -782,11 +793,12 @@
           if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
         }
         const devId = d.charger && d.charger.key === 'SI-D' ? d.dev : '';
+        const reopened = d.reopened || '';
         close();
         (async () => {
-          if (devId) {
+          if (devId || reopened) {
             try {
-              const r = await chrome.runtime.sendMessage({ type: 'desc-links', id: devId });
+              const r = await chrome.runtime.sendMessage({ type: 'desc-links', id: devId, reopened });
               if (!r || !r.ok) toast([tr('Update title'), (r && r.error) || tr('Failed to run.')], true, 5000);
             } catch (_) { /* extensão recarregada */ }
           }
@@ -812,13 +824,17 @@
     if (clearBusy) return;
     clearBusy = true; btn.disabled = true;
     try {
-      // Ordem: Main Asset, Product, Product Family, Technology (os dois últimos podem ser só leitura)
+      // Ordem: Main Asset, Product, Product Family, Technology (os dois últimos podem ser só leitura).
+      // Clica no × de cada um e segue assim que a etiqueta some (sem espera fixa).
       for (const id of ['sie_mainassetid', 'productid', 'sie_productfamilyid', 'sie_technologyid']) {
         const ul = lookupList(id);
         const dels = ul ? [...ul.querySelectorAll(`button[data-id="${id}.fieldControl-LookupResultsDropdown_${id}_selected_tag_delete"]`)] : [];
-        for (const d of dels) { realClick(d); await sleep(700); }
+        for (const d of dels) {
+          realClick(d);
+          await waitFor(() => !d.isConnected || !visible(d), 1500, 30);
+        }
       }
-      await sleep(800);
+      await sleep(150);
       const names = { sie_productfamilyid: 'Product Family', sie_technologyid: 'Technology' };
       const left = ['sie_productfamilyid', 'sie_technologyid'].filter((id) => lookupList(id) && lookupList(id).querySelector('[data-id$="_selected_tag"]')).map((id) => names[id]);
       if (left.length) toast([tr('Clear product fields'), tr('{names} are read-only and were not cleared.', { names: left.join(' + ') })], false, 5000);

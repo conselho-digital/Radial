@@ -407,39 +407,46 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Ticket Sicharge D: coloca no topo da Internal Description os links do SCB e do Sifinity para o Charger ID:
-  //   "SCB: <ID>" (link), "Sifinity: <ID>" (link) e um parágrafo vazio para separar do resto. Não repete se já existir.
-  if (msg.type === 'desc-links' && sender.tab && sender.frameId === 0 && typeof msg.id === 'string') {
+  // Internal Description (topo): links do SCB e do Sifinity do Charger ID (Sicharge D) e, se o ticket foi reaberto,
+  // a linha "Reopened_…". Ordem: SCB, Sifinity, parágrafo vazio, Reopened, parágrafo vazio, resto do texto.
+  // Não repete o que já estiver na descrição.
+  if (msg.type === 'desc-links' && sender.tab && sender.frameId === 0) {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
       world: 'MAIN',
-      args: [msg.id.trim()],
-      func: (id) => {
-        if (!id) return { ok: false, error: 'No Charger ID.' };
+      args: [String(msg.id || '').trim(), String(msg.reopened || '').trim()],
+      func: (id, reopened) => {
+        if (!id && !reopened) return { ok: false, error: 'Nothing to add.' };
         const eds = [...document.querySelectorAll('.ck-editor__editable')].filter((el) => el.ckeditorInstance);
         const el = eds.find((e) => /description/i.test(e.getAttribute('aria-label') || '')) || eds[0];
         if (!el) return { ok: false, error: 'Internal Description editor not found.' };
         const ed = el.ckeditorInstance;
         const scb = 'https://configuration.sicharge.technology/chargers/' + encodeURIComponent(id) + '/detail';
         const sif = 'https://control.emobility.io/chargers/' + encodeURIComponent(id) + '/charger-details';
-        let exists = false;
+        const out = { ok: true, links: false, reopened: false };
         ed.model.change((w) => {
           const root = ed.model.document.getRoot();
+          let hasLinks = false, text = '';
           for (const item of w.createRangeIn(root).getItems()) {
-            if (item.is('$textProxy') && item.getAttribute('linkHref') === scb) { exists = true; break; }
+            if (!item.is('$textProxy')) continue;
+            text += item.data;
+            if (id && item.getAttribute('linkHref') === scb) hasLinks = true;
           }
-          if (exists) return;
-          const line = (label, text, href) => {
+          const addLinks = !!id && !hasLinks;
+          const addReopened = !!reopened && !text.replace(/\s+/g, ' ').includes(reopened.replace(/\s+/g, ' '));
+          const line = (label, t, href) => {
             const p = w.createElement('paragraph');
-            w.insertText(label, { bold: true }, p, 'end');
-            w.insertText(text, { linkHref: href }, p, 'end');
+            if (label) w.insertText(label, { bold: true }, p, 'end');
+            w.insertText(t, href ? { linkHref: href } : {}, p, 'end');
             return p;
           };
-          w.insert(line('SCB: ', id, scb), root, 0);
-          w.insert(line('Sifinity: ', id, sif), root, 1);
-          w.insert(w.createElement('paragraph'), root, 2);
+          const list = [];
+          if (addLinks) list.push(line('SCB: ', id, scb), line('Sifinity: ', id, sif), w.createElement('paragraph'));
+          if (addReopened) list.push(line('', reopened), w.createElement('paragraph'));
+          list.forEach((p, i) => w.insert(p, root, i));
+          out.links = addLinks; out.reopened = addReopened;
         });
-        return { ok: true, existed: exists };
+        return out;
       },
     }).then((r) => sendResponse((r && r[0] && r[0].result) || { ok: false, error: 'No response.' })).catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true;
