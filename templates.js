@@ -512,14 +512,27 @@
     return null;   // família desconhecida: a janela pergunta
   }
   const fold = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/&/g, 'and').replace(/[’`]/g, "'").replace(/\s+/g, ' ').trim();
+  // Regiões reais (sem códigos antigos como FX, que o Intl também chama de "France"); nome repetido: vale o primeiro.
+  const OLD_REGIONS = new Set(['AC', 'AN', 'BU', 'CP', 'CS', 'DD', 'DG', 'EA', 'EU', 'EZ', 'FX', 'IC', 'NT', 'QO', 'SF', 'SU', 'TA', 'TP', 'UN', 'XA', 'XB', 'XK', 'YD', 'YU', 'ZR', 'ZZ', 'DY', 'HV', 'NH', 'RH', 'UK', 'VD']);
+  function regionNames() {
+    const out = [], seen = new Set();
+    try {
+      const dn = new Intl.DisplayNames(['en'], { type: 'region' });
+      for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
+        const c = String.fromCharCode(a, b);
+        if (OLD_REGIONS.has(c)) continue;
+        const n = dn.of(c);
+        if (!n || n === c || seen.has(n)) continue;
+        seen.add(n); out.push({ name: n, code: c });
+      }
+    } catch (_) { /* sem Intl.DisplayNames */ }
+    return out;
+  }
   let cmap = null;
   function countryToCode(name) {
     if (!cmap) {
       cmap = new Map();
-      try {
-        const dn = new Intl.DisplayNames(['en'], { type: 'region' });
-        for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) { const c = String.fromCharCode(a, b), n = dn.of(c); if (n && n !== c) cmap.set(fold(n), c); }
-      } catch (_) { /* sem Intl.DisplayNames */ }
+      regionNames().forEach((r) => cmap.set(fold(r.name), r.code));
       Object.entries({ bosnia: 'BA', korea: 'KR', 'brunei darussalam': 'BN', 'russian federation': 'RU', 'viet nam': 'VN', 'syrian arab republic': 'SY',
         'republic of north macedonia': 'MK', malvinas: 'FK', turkiye: 'TR', 'cabo verde': 'CV', congo: 'CG', laos: 'LA', moldova: 'MD', micronesia: 'FM',
         palestine: 'PS', iran: 'IR', tanzania: 'TZ', venezuela: 'VE', bolivia: 'BO', taiwan: 'TW', macao: 'MO', "cote d'ivoire": 'CI', 'virgin islands': 'VI',
@@ -560,14 +573,7 @@
   const deviceId = () => { const i = qv('input[aria-label="Device ID"]'); return i ? norm(i.value || i.getAttribute('title')) : ''; };
 
   // Países para escolher quando o campo "Country of Charger" está vazio.
-  function countryList() {
-    const out = [];
-    try {
-      const dn = new Intl.DisplayNames(['en'], { type: 'region' });
-      for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) { const c = String.fromCharCode(a, b), n = dn.of(c); if (n && n !== c) out.push({ name: n, code: c }); }
-    } catch (_) { /* sem Intl.DisplayNames */ }
-    return out.sort((x, y) => x.name.localeCompare(y.name));
-  }
+  const countryList = () => regionNames().sort((x, y) => x.name.localeCompare(y.name));
   // Escreve no campo de busca do Dynamics, espera a lista, Enter na primeira opção.
   async function pickLookup(input, text) {
     realClick(input);
