@@ -702,7 +702,7 @@
     if (warrantyValue && ddValue(main).toLowerCase() !== warrantyValue.toLowerCase()) await chooseOption(main, warrantyValue);
   }
 
-  // Antes de qualquer mudança: Save do caso. Espera o "- Unsaved" virar "- Saved" (se não virar, segue depois de 5 s).
+  // Antes de qualquer mudança: Save do caso. Espera o "- Unsaved" virar "- Saved"; se não virar, o Update title para.
   const unsavedNow = () => [...document.querySelectorAll('span,div')].some((e) => e.children.length === 0 && visible(e) && /^-?\s*Unsaved$/i.test(norm(e.textContent)));
   // Se o caso tem o campo "First Response Sent", a Priority tem que ser High (antes do primeiro Save).
   async function priorityHigh() {
@@ -715,11 +715,13 @@
 
   async function saveCaseFirst() {
     const b = qv('button[data-id="incident|NoRelationship|Form|Mscrm.Form.incident.Save"]');
-    if (!b) return;
+    if (!b) return true;
     const was = unsavedNow();
     realClick(b);
-    if (was) await waitFor(() => !unsavedNow(), 5000, 100);
+    let ok = true;
+    if (was) ok = !!(await waitFor(() => !unsavedNow(), 6000, 100));
     await sleep(300);
+    return ok;                              // false = continua "Unsaved" (falta campo obrigatório, por exemplo)
   }
 
   // Duplo clique (abre o registro do asset).
@@ -797,8 +799,9 @@
     let ser = await waitFor(() => qv(ASSET_SERIAL), 5000);
     if (!ser) { tag.click(); ser = await waitFor(() => qv(ASSET_SERIAL), 4000); }
     if (!ser) return {};
-    await sleep(250);                                       // o Device ID carrega junto; dá um instante
-    const dev = qv(ASSET_DEVICE);
+    // Device ID: o campo carrega um pouco depois do serial; espera ele aparecer e, se vier vazio, dá um instante para o valor chegar
+    const dev = await waitFor(() => qv(ASSET_DEVICE), 3000);
+    if (dev) await waitFor(() => norm(dev.value) && !/^(select to enter data|---)$/i.test(norm(dev.value)), 1500, 50);
     const out = { opened: true, serial: norm(ser.value), dev: dev ? norm(dev.value) : '' };
     if (/^(select to enter data|---)$/i.test(out.serial)) out.serial = '';
     if (/^(select to enter data|---)$/i.test(out.dev)) out.dev = '';
@@ -860,7 +863,10 @@
     const run = ++ticketRun;
     try {
       try { await priorityHigh(); } catch (e) { toast([tr('Priority'), String(e && e.message || e)], true, 5000); }
-      await saveCaseFirst();
+      if (!(await saveCaseFirst())) {
+        toast([tr('Update title'), tr('The case did not save (still Unsaved). Fill in the required fields and try again.')], true, 8000);
+        return;
+      }
       const name = countryName();
       const d = { id: ticketId(), cc: countryToCode(name), fam: '', charger: null, sw: null, serial: '', dev: '', rest: '', run };
       if (d.cc) { await collectProduct(d); if (run === ticketRun) openTicketDialog(d); }
