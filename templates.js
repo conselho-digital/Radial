@@ -460,7 +460,7 @@
     if (!document.execCommand('delete')) { nativeSet(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })); }
   }
 
-  const KEYCODES = { Enter: 13 };
+  const KEYCODES = { Enter: 13, ArrowDown: 40 };
   function pressKey(el, k) {
     ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t, { key: k, code: k, keyCode: KEYCODES[k] || 0, which: KEYCODES[k] || 0, bubbles: true, cancelable: true })));
   }
@@ -629,12 +629,26 @@
   // Países para escolher quando o campo "Country of Charger" está vazio.
   const countryList = () => regionNames().sort((x, y) => x.name.localeCompare(y.name));
   // Escreve no campo de busca do Dynamics, espera a lista, Enter na primeira opção.
-  async function pickLookup(input, text, typed) {
+  // Primeira linha do resultado que contém o texto (a linha clicável, não só o trecho de texto).
+  const firstRow = (input, text) => {
+    const leaf = [...document.querySelectorAll('li,div,span,p')].find((e) => e !== input && e.children.length === 0 && visible(e) && norm(e.textContent).toLowerCase().includes(text));
+    return leaf ? (leaf.closest('[role="option"],[role="treeitem"],li') || leaf) : null;
+  };
+  // Escreve, espera a lista e escolhe a primeira opção: Enter; se não escolheu (done() ainda falso), clica na linha;
+  // se ainda não, seta para baixo + Enter.
+  async function pickLookup(input, text, typed, done) {
     realClick(input);
     typeInto(input, typed || text);
-    const found = await waitFor(() => dropdownRow(input, text.toLowerCase()), 7000, 150);
-    if (found) { await sleep(300); pressKey(input, 'Enter'); await sleep(900); } else { wipeInput(input); await sleep(300); }
-    return !!found;
+    const want = text.toLowerCase();
+    const found = await waitFor(() => dropdownRow(input, want), 7000, 150);
+    if (!found) { wipeInput(input); await sleep(300); return false; }
+    await sleep(300); pressKey(input, 'Enter'); await sleep(900);
+    if (done && !(await waitFor(done, 800, 100))) {
+      const row = firstRow(input, want);
+      if (row) { realClick(row); await sleep(900); }
+      if (!(await waitFor(done, 800, 100))) { pressKey(input, 'ArrowDown'); await sleep(250); pressKey(input, 'Enter'); await sleep(900); }
+    }
+    return true;
   }
   const COUNTRY_INPUT = 'input[data-id*="sie_countryofcharger"][data-id*="textInputBox"], [data-id*="sie_countryofcharger"] input[type="text"], [id*="sie_countryofcharger"] input[type="text"]';
 
@@ -1051,7 +1065,7 @@
     await sleep(200);
     const input = await waitFor(() => { const i = dlg.querySelector(QUEUE_INPUT); return i && visible(i) ? i : null; }, 5000);
     if (!input) throw new Error(tr('Queue box not found.'));
-    const ok = await pickLookup(input, text, '*' + text);
+    const ok = await pickLookup(input, text, '*' + text, () => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled; });
     if (!ok) throw new Error(tr('No record found for "{name}".', { name: text }));
     const add = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
     if (!add) throw new Error(tr('Add button stayed disabled.'));
@@ -1068,7 +1082,7 @@
       if (dd && ddValue(dd).toLowerCase() !== 'user or team') await chooseOption(dd, 'User or team');
       const input = await waitFor(() => { const i = dlg.querySelector(ASSIGN_INPUT); return i && visible(i) ? i : null; }, 5000);
       if (!input) throw new Error(tr('User or team box not found.'));
-      const ok = await pickLookup(input, text, '*' + text);
+      const ok = await pickLookup(input, text, '*' + text, () => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled; });
       if (!ok) throw new Error(tr('No record found for "{name}".', { name: text }));
       const go = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
       if (!go) throw new Error(tr('Assign button stayed disabled.'));
