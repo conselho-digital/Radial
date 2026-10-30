@@ -704,6 +704,15 @@
 
   // Antes de qualquer mudança: Save do caso. Espera o "- Unsaved" virar "- Saved" (se não virar, segue depois de 5 s).
   const unsavedNow = () => [...document.querySelectorAll('span,div')].some((e) => e.children.length === 0 && visible(e) && /^-?\s*Unsaved$/i.test(norm(e.textContent)));
+  // Se o caso tem o campo "First Response Sent", a Priority tem que ser High (antes do primeiro Save).
+  async function priorityHigh() {
+    const has = qv('label[id$="firstresponsesent-field-label"]') || [...document.querySelectorAll('label')].find((l) => visible(l) && norm(l.textContent) === 'First Response Sent');
+    if (!has) return;
+    const dd = qv('button[data-id="prioritycode.fieldControl-option-set-select"]');
+    if (!dd || ddValue(dd).toLowerCase() === 'high') return;
+    await chooseOption(dd, 'High');
+  }
+
   async function saveCaseFirst() {
     const b = qv('button[data-id="incident|NoRelationship|Form|Mscrm.Form.incident.Save"]');
     if (!b) return;
@@ -813,6 +822,7 @@
     ticketBusy = true; btn.disabled = true;
     const run = ++ticketRun;
     try {
+      try { await priorityHigh(); } catch (e) { toast([tr('Priority'), String(e && e.message || e)], true, 5000); }
       await saveCaseFirst();
       const name = countryName();
       const d = { id: ticketId(), cc: countryToCode(name), fam: '', charger: null, sw: null, serial: '', dev: '', rest: '', run };
