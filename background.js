@@ -452,6 +452,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Teclas de verdade (teclado do navegador) na aba: usadas para Tab + Delete na janela "Add to Queue".
+  if (msg.type === 'press-keys' && sender.tab && sender.frameId === 0 && Array.isArray(msg.keys)) {
+    const CODES = { Tab: { vk: 9, code: 'Tab' }, Delete: { vk: 46, code: 'Delete' } };
+    const keys = msg.keys.filter((k) => CODES[k]);
+    const target = { tabId: sender.tab.id };
+    (async () => {
+      let attached = false;
+      try {
+        await chrome.debugger.attach(target, '1.3'); attached = true;
+        for (const k of keys) {
+          const c = CODES[k];
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', key: k, code: c.code, windowsVirtualKeyCode: c.vk, nativeVirtualKeyCode: c.vk });
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: c.code, windowsVirtualKeyCode: c.vk, nativeVirtualKeyCode: c.vk });
+          await new Promise((r) => setTimeout(r, 150));
+        }
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e && e.message || e) });
+      } finally {
+        if (attached) chrome.debugger.detach(target).catch(() => {});
+      }
+    })();
+    return true;
+  }
+
   // Cartão de templates: apaga o item de lista vazio "Troubleshooting:" que alguns templates deixam no corpo.
   if (msg.type === 'tpl-drop-ts' && sender.tab && sender.frameId === 0) {
     chrome.scripting.executeScript({
