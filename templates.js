@@ -707,10 +707,11 @@
   // Se o caso tem o campo "First Response Sent", a Priority tem que ser High (antes do primeiro Save).
   async function priorityHigh() {
     const has = qv('label[id$="firstresponsesent-field-label"]') || [...document.querySelectorAll('label')].find((l) => visible(l) && norm(l.textContent) === 'First Response Sent');
-    if (!has) return;
+    if (!has) return '';
     const dd = qv('button[data-id="prioritycode.fieldControl-option-set-select"]');
-    if (!dd || ddValue(dd).toLowerCase() === 'high') return;
-    await chooseOption(dd, 'High');
+    if (!dd) return '';
+    if (ddValue(dd).toLowerCase() !== 'high') await chooseOption(dd, 'High');
+    return 'High';
   }
 
   async function saveCaseFirst() {
@@ -813,11 +814,15 @@
   // Tabela de Assets carregada e vazia ("No data available", "0 - 0 of 0", "Rows: 0").
   const assetsEmpty = () => [...document.querySelectorAll('div,span,p,label')].some((e) => e.children.length === 0 && visible(e) && /^(no data available|0\s*-\s*0\s*of\s*0|rows:\s*0)$/i.test(norm(e.textContent)));
   async function collectProduct(d) {
+    const ui = d.ui;
+    ui.step(tr('Checking Product page')); ui.item('prod', tr('Product page'), 'run');
     const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
     if (!tabP || !tabM) throw new Error(tr('Product and Main tabs not found.'));
     realClick(tabP);
     const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
     d.fam = fam || '';
+    ui.step(tr('Checking Product Family'));
+    ui.item('prod', tr('Product page'), fam ? 'ok' : 'bad', fam || tr('Product Family not found'));
     // Família "Sifinity" (software): o tipo vem do campo Product (Sifinity Control, DepotFinity, Sifinity Go…).
     const readProd = () => { const u = lookupList('productid'); const e = u && u.querySelector('[data-id$="_selected_tag_text"]'); return e ? textOf(e) : ''; };
     d.swFamily = /sifinity|depotfinity|software/i.test(d.fam);
@@ -827,6 +832,7 @@
     d.sw = detectSoftware(d.fam) || ((d.swFamily || !detectCharger(d.fam)) && prodSw) || null;
     d.charger = d.sw || d.swFamily ? null : detectCharger(d.fam);
     d.product = prodTag || '';
+    ui.family();
     // Serial: volta assim que achar; se a tabela de assets já carregou vazia, não espera mais
     const waitSerial = async (max) => {
       const t0 = Date.now();
@@ -838,200 +844,402 @@
       }
     };
     if (d.sw || d.swFamily) {
+      ui.step(tr('Checking serial number'));
       d.serial = await waitSerial(1200);
     } else {
       // Serial e Device ID vêm do registro do Main Asset; se ele não abrir, serial da tabela de Assets e Device ID da aba Product
+      ui.step(tr('Checking Main Asset')); ui.item('asset', tr('Main Asset'), 'run');
       const a = await readAsset();
+      ui.step(tr('Checking serial number and Charger ID'));
       if (a.opened) { d.serial = a.serial; d.dev = a.dev; }
       else {
         d.serial = await waitSerial(2500);
         if (!d.charger || d.charger.key === 'SI-D') d.dev = (await waitFor(deviceId, 2000)) || '';
       }
     }
+    if (!d.sw && !d.swFamily) ui.item('asset', tr('Main Asset'), d.serial ? 'ok' : 'skip', d.serial ? tr('Serial {n}', { n: d.serial }) : tr('No serial found'));
     d.serialFound = !!d.serial;           // sem serial não há asset: não pergunta o Device ID
     await goMain();
     const input = await waitFor(() => qv(TITLE_SEL), 3000);
     if (!input) throw new Error(tr('Could not go back to the Main tab.'));
     const i = input.value.lastIndexOf(']');
+    ui.step(tr('Checking Title'));
     d.rest = i >= 0 ? input.value.slice(i + 1).trim() : norm(input.value);
     d.reopened = reopenedText(input.value);
+  }
+
+  // ---------- Update title: assistente com 3 janelas ----------
+  // Barra da etapa no topo; no meio, à esquerda a lista de checks (o que não vai para o título) e à direita a janela do título
+  // (caixa com barra de progresso atrás, perguntas e botões). As duas janelas arrastam pela barra de cima; o × para o processo.
+  const CANCEL = { cancel: true };
+  const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const TITLE_PCT = [12, 30, 48, 66, 100];     // % da barra depois de cada parte: ID, família, país, serial, título
+
+  function openWizard(d) {
+    if (ticketDlg) ticketDlg.remove();
+    ticketDlg = document.createElement('div');
+    const r = ticketDlg.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = `*{box-sizing:border-box}
+      .bar{position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:2147483000;min-width:340px;max-width:92vw;background:#005f6b;color:#fff;border-radius:20px;padding:8px 20px 9px 14px;display:flex;align-items:center;gap:10px;font:600 13px 'Segoe UI',Roboto,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.35);overflow:hidden;user-select:none}
+      .bar::after{content:'';position:absolute;left:-40%;bottom:0;height:2px;width:40%;background:rgba(255,255,255,.75);animation:slide 1.3s ease-in-out infinite}
+      .bar.wait::after{display:none}
+      .spin{width:14px;height:14px;flex:none;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+      .bar.wait .spin{border:0;background:#ffd54f;animation:pulse 1s ease-in-out infinite}
+      .stx{display:inline-block;animation:sw .25s ease-out}
+      .win{position:fixed;z-index:2147482999;background:#f4f7f9;border-radius:8px;box-shadow:5px 5px 25px rgba(0,0,0,.4);font:13px 'Segoe UI',Roboto,sans-serif;color:#333;animation:win .25s ease-out}
+      .hd{background:#005f6b;color:#fff;padding:9px 12px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;font-weight:bold;font-size:13px;letter-spacing:.5px;cursor:move;user-select:none;touch-action:none}
+      .x{cursor:pointer;font-size:24px;line-height:1;font-weight:normal;color:rgba(255,255,255,.7);background:none;border:0;padding:0 2px}.x:hover{color:#fff}
+      .sub{font-size:11px;font-weight:600;color:#555;padding:8px 14px 0;text-transform:uppercase;letter-spacing:.4px}
+      .cl{list-style:none;margin:0;padding:4px 14px 12px;min-height:90px}
+      .cl li{display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:1px dashed #cfd8dc;font-size:13px;animation:in .28s ease-out}
+      .cl li:last-child{border-bottom:0}
+      .cb{width:18px;height:18px;flex:none;margin-top:1px;border:2px solid #005f6b;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font:bold 12px/1 sans-serif;transition:background .15s,border-color .15s}
+      li.run .cb{border-radius:50%;border-top-color:transparent;animation:sp .7s linear infinite}
+      li.ok .cb{background:#2e7d32;border-color:#2e7d32;animation:pop .32s ease-out}
+      li.skip .cb{background:#e0e0e0;border-color:#9e9e9e;color:#777}li.skip{color:#777}
+      li.bad .cb{background:#c4314b;border-color:#c4314b;animation:pop .32s ease-out}
+      .lt b{font-weight:600}.lt small{display:block;color:#555;font-size:11px;margin-top:1px;word-break:break-word}
+      .body{padding:14px}
+      .tbox{position:relative;border:1px solid #005f6b;border-radius:5px;background:#fff;overflow:hidden;min-height:38px}
+      .tfill{position:absolute;left:0;top:0;bottom:0;width:0;background:#7cc4cc;opacity:.55;transition:width .4s ease,background .3s}
+      .ttx{position:relative;font:14px Consolas,monospace;padding:9px 10px;line-height:20px;min-height:36px;word-break:break-all}
+      .q{margin-top:14px}.q:empty{display:none}
+      .lbl{font-size:13px;font-weight:bold;color:#005f6b;letter-spacing:.5px;text-transform:uppercase;margin:0 0 6px}
+      input{width:100%;padding:6px 12px;border:1px solid #005f6b;border-radius:5px;background:#fff;font:bold 14px 'Segoe UI',Roboto,sans-serif;height:34px;color:#333}
+      .note{font-size:11px;font-weight:600;color:#555;margin:0 0 6px}
+      .list{border:1px solid #005f6b;border-radius:5px;background:#fff;max-height:240px;overflow-y:auto;margin-top:6px}
+      .it{padding:8px 12px;cursor:pointer;font-size:14px;font-weight:bold;color:#333;background:#fff;border:0;width:100%;text-align:left;display:block;font-family:inherit}.it:hover{background:#005f6b;color:#fff}
+      .it.sw{color:#005f6b;border-top:1px solid #cfd8dc}
+      .act{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap}.act.l{justify-content:flex-start;margin:0 0 10px}
+      .btn{background:#005f6b;color:#fff;border:none;border-radius:4px;padding:6px 18px;font:bold 13px 'Segoe UI',Roboto,sans-serif;cursor:pointer}.btn:hover{background:#004852}
+      .btn.g{background:#fff;color:#005f6b;border:1px solid #005f6b}.btn.g:hover{background:#e6f7f8}
+      @keyframes sp{to{transform:rotate(360deg)}}@keyframes slide{to{left:100%}}
+      @keyframes pulse{50%{opacity:.35;transform:scale(.8)}}
+      @keyframes sw{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+      @keyframes in{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+      @keyframes pop{0%{transform:scale(.5)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+      @keyframes win{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+      @media(prefers-reduced-motion:reduce){*,*::after{animation:none!important;transition:none!important}}`;
+    // barra da etapa
+    const bar = mk('div', 'bar'); bar.setAttribute('role', 'status');
+    const stx = mk('span', 'stx', tr('Starting…'));
+    bar.append(mk('span', 'spin'), stx);
+    // janela da esquerda: lista de checks
+    const wl = mk('div', 'win');
+    const hl = mk('div', 'hd'); hl.append(mk('span', null, tr('Checks')));
+    const xl = mk('button', 'x', '×'); xl.type = 'button'; xl.setAttribute('aria-label', 'Close'); hl.appendChild(xl);
+    const cl = mk('ul', 'cl');
+    wl.append(hl, mk('div', 'sub', tr('Not in the title')), cl);
+    // janela da direita: título
+    const wr = mk('div', 'win');
+    const hr = mk('div', 'hd'); hr.append(mk('span', null, 'Ticket Generator'));
+    const xr = mk('button', 'x', '×'); xr.type = 'button'; xr.setAttribute('aria-label', 'Close'); hr.appendChild(xr);
+    const body = mk('div', 'body');
+    const tbox = mk('div', 'tbox'), fill = mk('div', 'tfill'), ttx = mk('div', 'ttx');
+    tbox.append(fill, ttx);
+    const q = mk('div', 'q');
+    body.append(tbox, q);
+    wr.append(hr, body);
+    // posição inicial: no meio da tela, lado a lado
+    const W = window.innerWidth, lw = Math.min(270, Math.round(W * 0.4)), rw = Math.min(500, W - lw - 40);
+    const x0 = Math.max(8, Math.round((W - (lw + 16 + rw)) / 2)), y0 = Math.max(56, Math.round(window.innerHeight * 0.18));
+    Object.assign(wl.style, { left: x0 + 'px', top: y0 + 'px', width: lw + 'px' });
+    Object.assign(wr.style, { left: (x0 + lw + 16) + 'px', top: y0 + 'px', width: rw + 'px' });
+    const drag = (win, hd) => hd.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.x')) return;
+      const b = win.getBoundingClientRect(), dx = e.clientX - b.left, dy = e.clientY - b.top;
+      hd.setPointerCapture(e.pointerId);
+      const mv = (ev) => {
+        win.style.left = Math.min(Math.max(0, ev.clientX - dx), window.innerWidth - 80) + 'px';
+        win.style.top = Math.min(Math.max(0, ev.clientY - dy), window.innerHeight - 40) + 'px';
+      };
+      const up = () => { hd.removeEventListener('pointermove', mv); hd.removeEventListener('pointerup', up); };
+      hd.addEventListener('pointermove', mv); hd.addEventListener('pointerup', up);
+    });
+    drag(wl, hl); drag(wr, hr);
+    for (const w of [wl, wr]) {
+      w.addEventListener('keydown', (e) => e.stopPropagation());
+      w.addEventListener('pointerdown', () => { wl.style.zIndex = wr.style.zIndex = 2147482999; w.style.zIndex = 2147483000; });
+    }
+
+    let pending = null;
+    const alive = () => { if (d.closed) throw CANCEL; };
+    const close = () => {
+      d.closed = true;
+      if (pending) { const p = pending; pending = null; p.reject(CANCEL); }
+      if (ticketDlg) ticketDlg.remove();
+      ticketDlg = null;
+    };
+    xl.onclick = xr.onclick = close;
+
+    // texto do título, escrito aos poucos; a barra de progresso cresce junto
+    const T = { parts: [], typed: 0, shown: '', pct: 0, chain: Promise.resolve() };
+    const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const setPct = (p) => { if (p > T.pct) { T.pct = p; fill.style.width = p + '%'; } };
+    const typeText = async (s) => {
+      for (const ch of s) {
+        if (d.closed) return;
+        T.shown += ch; ttx.textContent = T.shown; ttx.title = T.shown;
+        if (!reduced) await sleep(s.length > 20 ? 6 : 16);
+      }
+    };
+    const flush = () => {
+      T.chain = T.chain.then(async () => {
+        while (!d.closed && T.parts[T.typed] != null) {
+          const s = T.parts[T.typed]; T.typed++;
+          await typeText(s);
+          setPct(TITLE_PCT[T.typed - 1]);
+        }
+      });
+    };
+    const items = {};
+    const ui = {
+      close, setPct,
+      step(msg, wait) {
+        alive();
+        bar.classList.toggle('wait', !!wait);
+        if (stx.textContent !== msg) {
+          stx.textContent = msg; stx.style.animation = 'none'; void stx.offsetWidth; stx.style.animation = '';
+        }
+      },
+      item(key, label, state, detail) {
+        alive();
+        let li = items[key];
+        if (!li) {
+          li = items[key] = mk('li');
+          const lt = mk('span', 'lt'); lt.append(mk('b', null, label), mk('small'));
+          li.append(mk('span', 'cb'), lt);
+          cl.appendChild(li);
+        }
+        li.className = state;
+        li.firstChild.textContent = { ok: '✓', bad: '!', skip: '–' }[state] || '';
+        const sm = li.querySelector('small'); sm.textContent = detail || ''; sm.style.display = detail ? 'block' : 'none';
+      },
+      setPart(i, text) { if (i < T.typed || T.parts[i] != null) return; T.parts[i] = text; flush(); },
+      idle() { return T.chain; },
+      family() {                                         // parte 2 do título (área/família ou software) assim que o tipo é conhecido
+        const c = d.sw || d.charger;
+        if (!c) return;
+        if (c.color) fill.style.background = c.color;
+        ui.setPart(1, d.sw ? '-' + d.sw.key : '-' + c.area + '/' + c.key);
+      },
+      // Mostra uma pergunta na janela da direita e espera a resposta. render(q, done) monta o conteúdo; done(valor) responde.
+      async ask(barMsg, render) {
+        await T.chain;                                    // espera terminar de escrever o título
+        alive();
+        ui.step(barMsg, true);
+        return new Promise((resolve, reject) => {
+          pending = { reject };
+          q.textContent = '';
+          render(q, (v) => { pending = null; q.textContent = ''; resolve(v); });
+        });
+      },
+    };
+    r.append(st, bar, wl, wr);
+    document.body.appendChild(ticketDlg);
+    return ui;
+  }
+
+  // ----- perguntas (cada uma devolve a resposta; o × da janela cancela) -----
+  const focusSoon = (el) => setTimeout(() => { try { el.focus(); } catch (_) { /* janela fechada */ } }, 30);
+  async function askCountry(ui) {
+    const c = await ui.ask(tr('Waiting for the country'), (q, done) => {
+      q.append(mk('div', 'lbl', tr('Country not found. Pick the country:')));
+      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the country name');
+      const list = mk('div', 'list');
+      const items = countryList().map((c) => { const b = mk('button', 'it', c.name); b.type = 'button'; b.onclick = () => done(c); list.appendChild(b); return { c, b }; });
+      inp.addEventListener('input', () => { const s = fold(inp.value); items.forEach(({ c, b }) => { b.style.display = !s || fold(c.name).includes(s) ? 'block' : 'none'; }); });
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const f = items.find((x) => x.b.style.display !== 'none'); if (f) done(f.c); } });
+      q.append(inp, list); focusSoon(inp);
+    });
+    return c;
+  }
+  async function askType(d, ui) {
+    const software = !!d.swFamily;
+    const pick = await ui.ask(tr('Waiting for the charger type'), (q, done) => {
+      const draw = (sw) => {
+        q.textContent = '';
+        q.append(mk('div', 'lbl', sw ? tr('Pick the software:') : tr('Product family not recognized{name}. Pick the charger:', { name: d.fam ? ' (' + d.fam + ')' : '' })));
+        const list = mk('div', 'list');
+        (sw ? SOFTWARE : CHARGERS).forEach((c) => {
+          const b = mk('button', 'it', c.label); b.type = 'button';
+          b.onclick = () => done({ sw: sw ? c : null, charger: sw ? null : c });
+          list.appendChild(b);
+        });
+        const toggle = mk('button', 'it sw', sw ? tr('Back to chargers') : 'Software'); toggle.type = 'button';
+        toggle.onclick = () => draw(!sw);
+        list.appendChild(toggle); q.appendChild(list);
+      };
+      draw(software);
+    });
+    d.sw = pick.sw; d.charger = pick.charger;
+    if (d.charger && d.charger.key === 'SI-D' && !d.dev) d.dev = deviceId();
+  }
+  // Serial não achado: NULL ou MULTI (ou digitar; o OK só aparece com algo digitado).
+  async function askSerial(ui) {
+    return ui.ask(tr('Waiting for the serial number'), (q, done) => {
+      q.append(mk('div', 'lbl', tr('Serial number not found')));
+      const row = mk('div', 'act l');
+      ['NULL', 'MULTI'].forEach((v) => { const b = mk('button', 'btn', v); b.type = 'button'; b.onclick = () => done(v); row.appendChild(b); });
+      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('or type the serial number');
+      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button'; ok.style.display = 'none';
+      const go = () => { const v = norm(inp.value); if (v) done(v); };
+      inp.addEventListener('input', () => { ok.style.display = norm(inp.value) ? '' : 'none'; });
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      ok.onclick = go;
+      const act = mk('div', 'act'); act.appendChild(ok);
+      q.append(row, inp, act);
+    });
+  }
+  // Charger ID (SI-D) não achado: Skip, Add ou OK; Add e OK só aparecem com algo digitado.
+  async function askDevice(ui) {
+    return ui.ask(tr('Waiting for the Charger ID'), (q, done) => {
+      const head = mk('div', 'lbl', '"SiCharge D" - ' + tr('Charger ID not found')); head.style.textTransform = 'none';
+      q.append(head, mk('div', 'note', tr('Type the Charger ID')));
+      const inp = mk('input'); inp.spellcheck = false;
+      const addB = mk('button', 'btn g', tr('Add')); addB.type = 'button'; addB.title = tr('Write this Device ID on the asset (Product tab) and save it');
+      const skip = mk('button', 'btn g', tr('Skip')); skip.type = 'button';
+      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
+      addB.style.display = ok.style.display = 'none';
+      const go = () => { const v = norm(inp.value); if (v) done({ dev: v, add: false }); };
+      inp.addEventListener('input', () => { addB.style.display = ok.style.display = norm(inp.value) ? '' : 'none'; });
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      skip.onclick = () => done({ dev: '', add: false });
+      ok.onclick = go;
+      addB.onclick = () => { const v = norm(inp.value); if (v) done({ dev: v, add: true }); };
+      const act = mk('div', 'act'); act.append(skip, addB, ok);
+      q.append(inp, act); focusSoon(inp);
+    });
+  }
+  async function askTitle(d, ui) {
+    return ui.ask(tr('Waiting for the title'), (q, done) => {
+      q.append(mk('div', 'note', tr('Ticket Title')));
+      const rest = mk('input'); rest.spellcheck = false; rest.value = d.rest;
+      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
+      const go = () => done(norm(rest.value));
+      ok.onclick = go;
+      rest.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      const act = mk('div', 'act'); act.appendChild(ok);
+      q.append(rest, act); focusSoon(rest); setTimeout(() => { try { rest.select(); } catch (_) { /* fechada */ } }, 40);
+    });
+  }
+  // Pergunta de botões (Yes / No).
+  async function askButtons(ui, barMsg, label, buttons) {
+    return ui.ask(barMsg, (q, done) => {
+      q.append(mk('div', 'lbl', label));
+      const act = mk('div', 'act l');
+      buttons.forEach(([text, val, ghost], i) => { const b = mk('button', ghost ? 'btn g' : 'btn', text); b.type = 'button'; b.onclick = () => done(val); act.appendChild(b); if (!i) focusSoon(b); });
+      q.appendChild(act);
+    });
   }
 
   async function startTicket(btn) {
     if (ticketBusy) return;
     ticketBusy = true; btn.disabled = true;
-    const run = ++ticketRun;
-    try {
-      try { await priorityHigh(); } catch (e) { toast([tr('Priority'), String(e && e.message || e)], true, 5000); }
-      if (!(await saveCaseFirst())) {
-        toast([tr('Update title'), tr('The case did not save (still Unsaved). Fill in the required fields and try again.')], true, 8000);
-        return;
-      }
-      const name = countryName();
-      const d = { id: ticketId(), cc: countryToCode(name), fam: '', charger: null, sw: null, serial: '', dev: '', rest: '', run };
-      if (d.cc) { await collectProduct(d); if (run === ticketRun) openTicketDialog(d); }
-      else openTicketDialog(d);   // sem país: a janela pergunta, grava no campo e então lê o produto
-    } catch (e) {
-      console.warn('Radial: ticket', e);
-      toast([tr('Ticket'), String(e && e.message || e)], true);
-    } finally { ticketBusy = false; btn.disabled = false; }
+    const d = { id: '', cc: '', fam: '', charger: null, sw: null, serial: '', dev: '', rest: '', run: ++ticketRun };
+    const ui = openWizard(d);
+    d.ui = ui;
+    try { await ticketFlow(d, ui); }
+    catch (e) {
+      if (e !== CANCEL) { console.warn('Radial: ticket', e); toast([tr('Ticket'), String(e && e.message || e)], true); }
+    } finally { ui.close(); ticketBusy = false; btn.disabled = false; }
   }
 
-  function openTicketDialog(d) {
-    if (ticketDlg) ticketDlg.remove();
-    ticketDlg = document.createElement('div');
-    const r = ticketDlg.attachShadow({ mode: 'open' });
-    const st = document.createElement('style');
-    st.textContent = `.bg{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',Roboto,sans-serif;color:#333}
-      .box{width:min(580px,92vw);background:#f4f7f9;border-radius:8px;box-shadow:5px 5px 25px rgba(0,0,0,.4)}
-      .top{background:#005f6b;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;font-weight:bold;font-size:15px;letter-spacing:.5px;border-radius:8px 8px 0 0;user-select:none}
-      .x{cursor:pointer;font-size:26px;line-height:1;font-weight:normal;color:rgba(255,255,255,.7);background:none;border:0;padding:0}.x:hover{color:#fff}
-      .body{padding:18px}.lbl{font-size:13px;font-weight:bold;color:#005f6b;letter-spacing:.5px;text-transform:uppercase;margin:0 0 6px}
-      input{width:100%;padding:6px 12px;border:1px solid #005f6b;border-radius:5px;background:#fff;font:bold 14px 'Segoe UI',Roboto,sans-serif;height:34px;box-sizing:border-box;color:#333}
-      .pre{font:14px Consolas,monospace;padding:6px 10px;border:1px solid #ccc;border-radius:4px;min-height:30px;box-sizing:border-box;word-break:break-all;display:flex;align-items:center}
-      .note{font-size:11px;font-weight:600;color:#555;margin:0 0 6px}.note.gap{margin-top:14px}
-      .list{border:1px solid #005f6b;border-radius:5px;background:#fff;max-height:300px;overflow-y:auto}
-      .it{padding:8px 12px;cursor:pointer;font-size:14px;font-weight:bold;color:#333;background:#fff;border:0;width:100%;text-align:left;display:block;font-family:inherit}.it:hover{background:#005f6b;color:#fff}
-      .it.sw{color:#005f6b;border-top:1px solid #cfd8dc}
-      .act{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-      .btn{background:#005f6b;color:#fff;border:none;border-radius:4px;padding:6px 18px;font:bold 13px 'Segoe UI',Roboto,sans-serif;cursor:pointer}.btn:hover{background:#004852}
-      .btn.g{background:#fff;color:#005f6b;border:1px solid #005f6b}.btn.g:hover{background:#e6f7f8}`;
-    const bg = document.createElement('div'); bg.className = 'bg';
-    const box = document.createElement('div'); box.className = 'box'; box.setAttribute('role', 'dialog');
-    box.innerHTML = '<div class="top"><span>Ticket Generator</span><button class="x" type="button" aria-label="Close">&times;</button></div><div class="body"></div>';
-    const body = box.querySelector('.body');
-    const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-    const close = () => { d.closed = true; if (ticketDlg) ticketDlg.remove(); ticketDlg = null; };
-    box.querySelector('.x').onclick = close;
-    const sn = () => norm(d.serial) || 'NULL';
-    const prefix = () => d.sw ? `ID${d.id}-${d.sw.key}/${d.cc}-[${sn()}]` : `ID${d.id}-${d.charger.area}/${d.charger.key}/${d.cc}-[${sn()}]`;
-    const busy = (msg) => { body.textContent = ''; body.append(mk('div', 'lbl', msg)); };
-
-    // Uma pergunta por vez: país, tipo (carregador ou software), serial; sem faltas, a tela final.
-    function step() {
-      if (d.closed) return;
-      body.textContent = '';
-      if (!d.cc) return askCountry();
-      if (!d.sw && !d.charger) return askType(!!d.swFamily);
-      if (!d.serial && !d.serialAsked) return askSerial();
-      if (d.charger && d.charger.key === 'SI-D' && !d.dev && !d.devAsked && d.serialFound) return askDevice();
-      return finalStep();
+  async function ticketFlow(d, ui) {
+    const msg = (e) => String(e && e.message || e);
+    // 1. Priority
+    ui.step(tr('Checking Priority')); ui.item('prio', tr('Priority'), 'run');
+    try {
+      const p = await priorityHigh();
+      ui.item('prio', tr('Priority'), p ? 'ok' : 'skip', p ? p : tr('Not needed'));
+    } catch (e) { ui.item('prio', tr('Priority'), 'bad', msg(e)); }
+    // 2. Save
+    ui.step(tr('Saving the case')); ui.item('save', tr('Save'), 'run');
+    if (!(await saveCaseFirst())) {
+      ui.item('save', tr('Save'), 'bad', tr('Still Unsaved'));
+      toast([tr('Update title'), tr('The case did not save (still Unsaved). Fill in the required fields and try again.')], true, 8000);
+      return;
     }
-    function askCountry() {
-      body.append(mk('div', 'lbl', tr('Country not found. Pick the country:')));
-      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the country name');
-      const list = mk('div', 'list'); list.style.marginTop = '6px';
-      const all = countryList();
-      const items = all.map((c) => { const b = mk('button', 'it', c.name); b.type = 'button'; b.onclick = () => choose(c); list.appendChild(b); return { c, b }; });
-      const filter = () => { const q = fold(inp.value); items.forEach(({ c, b }) => { b.style.display = !q || fold(c.name).includes(q) ? 'block' : 'none'; }); };
-      async function choose(c) {
-        busy(tr('Reading the ticket…'));
-        try {
-          const f = document.querySelector(COUNTRY_INPUT);
-          if (!f) throw new Error(tr('Country of Charger field not found.'));
-          const ok = await pickLookup(f, c.name);
-          if (!ok) throw new Error(tr('Could not select "{name}" in Country of Charger.', { name: c.name }));
-          d.cc = c.code;
-          await collectProduct(d);
-          step();
-        } catch (e) { toast([tr('Ticket'), String(e && e.message || e)], true); close(); }
-      }
-      inp.addEventListener('input', filter);
-      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const f = items.find((x) => x.b.style.display !== 'none'); if (f) choose(f.c); } });
-      body.append(inp, list);
-      setTimeout(() => inp.focus(), 30);
+    ui.item('save', tr('Save'), 'ok');
+    d.id = ticketId();
+    ui.setPart(0, 'ID' + d.id);
+    // 3. Country
+    ui.step(tr('Checking Country'));
+    d.cc = countryToCode(countryName());
+    if (!d.cc) {
+      const c = await askCountry(ui);
+      ui.step(tr('Writing Country of Charger'));
+      const f = document.querySelector(COUNTRY_INPUT);
+      if (!f) throw new Error(tr('Country of Charger field not found.'));
+      if (!(await pickLookup(f, c.name))) throw new Error(tr('Could not select "{name}" in Country of Charger.', { name: c.name }));
+      d.cc = c.code;
     }
-    function askType(software) {
-      body.append(mk('div', 'lbl', software ? tr('Pick the software:') : tr('Product family not recognized{name}. Pick the charger:', { name: d.fam ? ' (' + d.fam + ')' : '' })));
-      const list = mk('div', 'list');
-      (software ? SOFTWARE : CHARGERS).forEach((c) => {
-        const b = mk('button', 'it', c.label); b.type = 'button';
-        b.onclick = () => { if (software) d.sw = c; else { d.charger = c; if (c.key === 'SI-D' && !d.dev) d.dev = deviceId(); } step(); };
-        list.appendChild(b);
-      });
-      const sw = mk('button', 'it sw', software ? tr('Back to chargers') : 'Software'); sw.type = 'button';
-      sw.onclick = () => { body.textContent = ''; askType(!software); };
-      list.appendChild(sw);
-      body.appendChild(list);
+    ui.setPart(2, '/' + d.cc);
+    // 4. Product page, family, asset, serial
+    await collectProduct(d);
+    if (!d.sw && !d.charger) await askType(d, ui);
+    ui.family();
+    if (!d.serial) {
+      d.serial = await askSerial(ui);
     }
-    function askSerial() {
-      body.append(mk('div', 'lbl', tr('Serial number not found')));
-      const inp = mk('input'); inp.spellcheck = false; inp.value = 'NULL';
-      body.appendChild(inp);
-      const act = mk('div', 'act');
-      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
-      const go = () => { const v = norm(inp.value); d.serial = /^null$/i.test(v) ? '' : v; d.serialAsked = true; step(); };
-      ok.onclick = go;
-      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
-      act.append(ok); body.appendChild(act);
-      setTimeout(() => { inp.focus(); inp.select(); }, 30);
-    }
-    function askDevice() {
-      const head = mk('div', 'lbl', '"SiCharge D" - ' + tr('Charger ID not found')); head.style.textTransform = 'none';   // mantém o "SiCharge D" como escrito
-      body.append(head, mk('div', 'note', tr('Type the Charger ID')));
-      const inp = mk('input'); inp.spellcheck = false;
-      body.appendChild(inp);
-      const act = mk('div', 'act');
-      const addB = mk('button', 'btn g', tr('Add')); addB.type = 'button'; addB.title = tr('Write this Device ID on the asset (Product tab) and save it');
-      const skip = mk('button', 'btn g', tr('Skip')); skip.type = 'button';
-      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
-      const go = () => { d.dev = norm(inp.value); d.devAsked = true; step(); };
-      skip.onclick = () => { d.dev = ''; d.devAsked = true; step(); };
-      ok.onclick = go;
-      ok.style.display = 'none';                                   // OK só aparece com algo digitado
-      inp.addEventListener('input', () => { ok.style.display = norm(inp.value) ? '' : 'none'; });
-      addB.onclick = async () => {
-        const v = norm(inp.value);
-        if (!v) { inp.focus(); return; }
-        busy(tr('Saving the Device ID on the asset…'));
-        try { await addDeviceToAsset(v); } catch (e) { toast([tr('Device ID'), String(e && e.message || e)], true, 8000); }
-        if (d.closed) return;
-        d.dev = v; d.devAsked = true; step();
-      };
-      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
-      act.append(addB, skip, ok); body.appendChild(act);
-      setTimeout(() => inp.focus(), 30);
-    }
-    function finalStep() {
-      body.textContent = '';
-      const pre = mk('div', 'pre', prefix()); pre.style.background = (d.sw || d.charger).color || '#fff';
-      body.appendChild(pre);
-      body.appendChild(mk('div', 'note gap', tr('Ticket Title')));
-      const rest = mk('input'); rest.spellcheck = false; rest.value = d.rest; body.appendChild(rest);
-      const act = mk('div', 'act');
-      const cn = mk('button', 'btn g', tr('Cancel')); cn.type = 'button'; cn.onclick = close;
-      const ap = mk('button', 'btn', tr('Apply')); ap.type = 'button';
-      const apply = () => {
-        const t = document.querySelector(TITLE_SEL);
-        if (!t) { toast([tr('Ticket'), tr('Case Title field not found.')], true); return; }
-        typeInto(t, (prefix() + ' ' + norm(rest.value)).trim()); t.dispatchEvent(new Event('change', { bubbles: true }));
-        if (d.charger && d.charger.key === 'SI-D' && d.dev) {
-          const c = document.querySelector('input[data-id="sie_chargerid.fieldControl-text-box-text"]');
-          if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
+    ui.setPart(3, '-[' + (norm(d.serial) || 'NULL') + ']');
+    // 5. Charger ID (só SiCharge D)
+    let addDev = false;
+    if (d.charger && d.charger.key === 'SI-D') {
+      ui.setPct(78);
+      if (d.dev) ui.item('dev', tr('Charger ID'), 'ok', d.dev);
+      else if (!d.serialFound) ui.item('dev', tr('Charger ID'), 'skip', tr('No asset'));
+      else {
+        ui.item('dev', tr('Charger ID'), 'run', tr('Not found'));
+        const a = await askDevice(ui);
+        d.dev = a.dev; addDev = a.add;
+        if (addDev) {
+          ui.step(tr('Saving the Charger ID on the asset…'));
+          try { await addDeviceToAsset(d.dev); } catch (e) { toast([tr('Device ID'), msg(e)], true, 8000); }
         }
-        const devId = d.charger && d.charger.key === 'SI-D' ? d.dev : '';
-        const reopened = d.reopened || '';
-        close();
-        (async () => {
-          if (devId || reopened) {
-            try {
-              const r = await chrome.runtime.sendMessage({ type: 'desc-links', id: devId, reopened });
-              if (!r || !r.ok) toast([tr('Update title'), (r && r.error) || tr('Failed to run.')], true, 5000);
-            } catch (_) { /* extensão recarregada */ }
-          }
-          try { await syncStage(); } catch (e) { toast([tr('Update title'), String(e && e.message || e)], true); }
-          await saveCaseFirst();          // no fim, salva de novo (mesmo que a etapa tenha falhado)
-        })().catch((e) => toast([tr('Update title'), String(e && e.message || e)], true));
-      };
-      ap.onclick = apply;
-      rest.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
-      act.append(cn, ap); body.appendChild(act);
-      setTimeout(() => rest.focus(), 30);
+        ui.item('dev', tr('Charger ID'), d.dev ? 'ok' : 'skip', d.dev ? d.dev + (addDev ? ' · ' + tr('added to the asset') : '') : tr('Skipped'));
+      }
     }
-    bg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') close(); });
-    bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
-    bg.appendChild(box); r.append(st, bg); document.body.appendChild(ticketDlg);
-    step();
+    // 6. Título
+    const rest = await askTitle(d, ui);
+    ui.setPart(4, rest ? ' ' + rest : '');
+    await ui.idle();
+    ui.setPct(100);
+    // 7. Gravar no formulário
+    ui.step(tr('Writing the title'));
+    const t = document.querySelector(TITLE_SEL);
+    if (!t) throw new Error(tr('Case Title field not found.'));
+    const prefix = d.sw ? `ID${d.id}-${d.sw.key}/${d.cc}-[${norm(d.serial) || 'NULL'}]` : `ID${d.id}-${d.charger.area}/${d.charger.key}/${d.cc}-[${norm(d.serial) || 'NULL'}]`;
+    typeInto(t, (prefix + ' ' + rest).trim()); t.dispatchEvent(new Event('change', { bubbles: true }));
+    const devId = d.charger && d.charger.key === 'SI-D' ? d.dev : '';
+    if (devId) {
+      const c = document.querySelector('input[data-id="sie_chargerid.fieldControl-text-box-text"]');
+      if (c) { typeInto(c, devId); c.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+    if (d.reopened) ui.item('reopen', tr('Reopened'), 'ok', d.reopened);
+    if (devId || d.reopened) {
+      ui.step(tr('Adding links to Internal Description')); ui.item('links', tr('Internal Description'), 'run');
+      try {
+        const r = await chrome.runtime.sendMessage({ type: 'desc-links', id: devId, reopened: d.reopened || '' });
+        if (!r || !r.ok) ui.item('links', tr('Internal Description'), 'bad', (r && r.error) || tr('Failed to run.'));
+        else ui.item('links', tr('Internal Description'), 'ok');
+      } catch (e) { ui.item('links', tr('Internal Description'), 'bad', msg(e)); }
+    }
+    ui.step(tr('Syncing Warranty and Stage')); ui.item('stage', tr('Warranty / Stage'), 'run');
+    try { await syncStage(); ui.item('stage', tr('Warranty / Stage'), 'ok'); }
+    catch (e) { ui.item('stage', tr('Warranty / Stage'), 'bad', msg(e)); }
+    ui.step(tr('Saving the case')); ui.item('save2', tr('Save'), 'run');
+    const saved = await saveCaseFirst();
+    ui.item('save2', tr('Save'), saved ? 'ok' : 'bad', saved ? '' : tr('Still Unsaved'));
+    // 8. Conferência
+    await askButtons(ui, tr('Waiting for you'), tr('Damex, checked?'), [[tr('Yes'), true]]);
+    const first = await askButtons(ui, tr('Waiting for you'), tr('Send first, response?'), [[tr('Yes'), true], [tr('No'), false, true]]);
+    ui.step(tr('Saving the case'));
+    await saveCaseFirst();
+    if (first) toast([tr('Create email'), tr('Coming soon: the Create email button is not set up yet.')], false, 5000);
+    ui.step(tr('Done'));
+    await sleep(900);
   }
 
   // ---------- Botão × na aba Product: limpa Product e Main Asset (Technology e Product Family são só leitura) ----------
