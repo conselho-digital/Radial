@@ -351,50 +351,49 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Formulário do caso: o contato de "On behalf of Contact" substitui o "Requester" e o "On behalf" fica vazio.
-  // Usa a API do formulário (Xrm) e o contato é identificado pelo GUID, não pelo nome (o mesmo nome pode ser
+  // Formulário do caso: botão ao lado de "On behalf of Contact". "contact-peek" diz se há contato no On behalf;
+  // "contact-swap" troca Requester e On behalf. Usa a API do formulário (Xrm) e o GUID do contato (o mesmo nome pode ser
   // outro registro, com outro e-mail). Todos os frames expõem o mesmo Xrm: um lock garante uma execução só.
-  // Se o Requester não confirmar a mudança, volta ao valor original. Não salva o caso.
-  if (msg.type === 'contact-move' && sender.tab && sender.frameId === 0) {
+  // Se algo não for confirmado, os dois campos voltam ao valor original. Não salva o caso.
+  if ((msg.type === 'contact-peek' || msg.type === 'contact-swap') && sender.tab && sender.frameId === 0) {
+    const swap = msg.type === 'contact-swap';
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id, allFrames: true },
       world: 'MAIN',
-      args: ['sie_referencingcontactid', 'sie_contact'],
-      func: async (sourceName, targetName) => {
+      args: ['sie_referencingcontactid', 'sie_contact', swap],
+      func: async (sourceName, targetName, doSwap) => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms));
         const norm = (id) => String(id || '').replace(/[{}]/g, '').toLowerCase();
         const clone = (v) => (v || []).map((i) => ({ id: String(i.id), name: String(i.name || ''), entityType: String(i.entityType || 'contact') }));
         const X = globalThis.Xrm, page = X && X.Page;
         if (!page || typeof page.getAttribute !== 'function') return { ignored: true, state: 'noform' };
+        const onBehalf = page.getAttribute(sourceName), requester = page.getAttribute(targetName);
+        if (!onBehalf || !requester) return { ignored: true, state: 'noform' };
+        if (!doSwap) return { state: clone(onBehalf.getValue()).length ? 'has' : 'none' };
         if (X.__radialContactLock) return { ignored: true, state: 'locked' };
         X.__radialContactLock = true;
+        const origReq = JSON.stringify(clone(requester.getValue())), origOb = JSON.stringify(clone(onBehalf.getValue()));
+        const restore = () => { const r = JSON.parse(origReq), o = JSON.parse(origOb); requester.setValue(r.length ? r : null); onBehalf.setValue(o.length ? o : null); };
         try {
-          const onBehalf = page.getAttribute(sourceName), requester = page.getAttribute(targetName);
-          if (!onBehalf || !requester) return { ignored: true, state: 'noform' };
-          const src = clone(onBehalf.getValue());
-          if (!src.length) return { state: 'none' };
-          const original = JSON.stringify(clone(requester.getValue()));
-          if (!(clone(requester.getValue())[0] && norm(clone(requester.getValue())[0].id) === norm(src[0].id))) {
-            requester.setValue(JSON.parse(JSON.stringify(src)));
-            requester.fireOnChange();
-            let ok = false;
-            for (let i = 0; i < 20 && !ok; i++) {
-              await wait(250);
-              const v = requester.getValue();
-              ok = !!(v && v.length && norm(v[0].id) === norm(src[0].id));
-            }
-            if (!ok) {
-              const back = JSON.parse(original);
-              requester.setValue(back.length ? back : null);
-              return { state: 'error', message: 'The Requester change was not kept. Nothing was changed.' };
-            }
+          const ob = JSON.parse(origOb), rq = JSON.parse(origReq);
+          if (!ob.length) return { state: 'error', message: 'On behalf of Contact is empty.' };
+          requester.setValue(JSON.parse(origOb));
+          requester.fireOnChange();
+          let ok = false;
+          for (let i = 0; i < 20 && !ok; i++) {
+            await wait(250);
+            const v = requester.getValue();
+            ok = !!(v && v.length && norm(v[0].id) === norm(ob[0].id));
           }
-          onBehalf.setValue(null);          // sem fireOnChange: foi isso que duplicava o contato
+          if (!ok) { restore(); return { state: 'error', message: 'The Requester change was not kept. Nothing was changed.' }; }
+          onBehalf.setValue(rq.length ? JSON.parse(origReq) : null);   // sem fireOnChange: foi isso que duplicava o contato
           await wait(300);
-          const left = onBehalf.getValue();
-          if (left && left.length) return { state: 'error', message: 'Could not clear On behalf of Contact.' };
-          return { state: 'done', name: src[0].name };
+          const fr = requester.getValue(), fo = onBehalf.getValue();
+          const good = fr && fr.length && norm(fr[0].id) === norm(ob[0].id) && (!rq.length || (fo && fo.length && norm(fo[0].id) === norm(rq[0].id)));
+          if (!good) { restore(); return { state: 'error', message: 'The swap was not kept. Nothing was changed.' }; }
+          return { state: 'done' };
         } catch (e) {
+          try { restore(); } catch (_) { /* ignora */ }
           return { state: 'error', message: String(e && e.message || e) };
         } finally {
           setTimeout(() => { try { delete X.__radialContactLock; } catch (_) { X.__radialContactLock = false; } }, 1500);
@@ -402,7 +401,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       },
     }).then((rs) => {
       const all = (rs || []).map((x) => x.result).filter(Boolean);
-      const pick = all.find((x) => x.state === 'done') || all.find((x) => x.state === 'error') || all.find((x) => x.state === 'none');
+      const pick = all.find((x) => x.state === 'done' || x.state === 'has') || all.find((x) => x.state === 'error') || all.find((x) => x.state === 'none');
       sendResponse(pick || { state: 'noform' });
     }).catch((e) => sendResponse({ state: 'error', message: String(e && e.message || e) }));
     return true;

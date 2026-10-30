@@ -16,7 +16,7 @@
 
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
-  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, contactSwap: true, emailTplKeep: 15, emailTplSee: 8 };
+  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, emailTplKeep: 15, emailTplSee: 8 };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => hostKey() === HOST || hostKey().endsWith('.' + HOST);
   const enabled = () => !!settings.emailTpl && hostOk();
@@ -831,22 +831,37 @@
     h2.insertAdjacentElement('afterend', clearHost);
   }
 
-  // ---------- Contato: "On behalf of Contact" substitui o "Requester" ao abrir o caso ----------
-  const contactSeen = new Map();
-  async function contactTick() {
-    if (settings.contactSwap === false || !hostOk() || !qv('li[data-id="tablist-tabProduct"]')) return;
-    const key = location.href + '|' + ticketId();
-    let st = contactSeen.get(key);
-    if (!st) contactSeen.set(key, (st = { t0: Date.now(), done: false, busy: false }));
-    if (st.done || st.busy || Date.now() - st.t0 > 30000) return;
-    st.busy = true;
+  // ---------- Botão ao lado de "On behalf of Contact": troca Requester e On behalf (só aparece com contato no On behalf) ----------
+  let swapHost = null, swapBusy = false, peekAt = 0, peekHas = false;
+  const OB_TAG = '[data-id^="sie_referencingcontactid."][data-id$="selected_tag_text"], [id*="sie_referencingcontactid.fieldControl-LookupResultsDropdown"][id*="selected_tag_text"]';
+  async function swapContacts(btn) {
+    if (swapBusy) return;
+    swapBusy = true; btn.disabled = true;
     try {
-      const r = await chrome.runtime.sendMessage({ type: 'contact-move' });
-      if (r && r.state === 'done') { st.done = true; toast([tr('Contact'), tr('Requester replaced by {name}. On behalf of Contact cleared.', { name: r.name })]); }
-      else if (r && r.state === 'none') st.done = true;
-      else if (r && r.state === 'error') { st.done = true; toast([tr('Contact'), r.message || tr('Failed to run.')], true); }
-      // noform: o formulário ainda não carregou, tenta de novo no próximo ciclo
-    } catch (_) { /* extensão recarregada */ } finally { st.busy = false; }
+      const r = await chrome.runtime.sendMessage({ type: 'contact-swap' });
+      if (!r || r.state !== 'done') toast([tr('Swap'), (r && r.message) || tr('Failed to run.')], true);
+    } catch (e) { toast([tr('Swap'), String(e && e.message || e)], true); }
+    finally { swapBusy = false; btn.disabled = false; peekAt = 0; }
+  }
+  async function swapTick() {
+    const lab = settings.ticketBtn !== false && hostOk() && qv('div[title^="On behalf of Contact"] > label');
+    let has = !!(lab && qv(OB_TAG));
+    if (lab && !has && Date.now() - peekAt > 4000) {   // plano B: pergunta ao formulário
+      peekAt = Date.now();
+      try { const r = await chrome.runtime.sendMessage({ type: 'contact-peek' }); peekHas = !!(r && r.state === 'has'); } catch (_) { peekHas = false; }
+    }
+    if (lab && !has) has = peekHas;
+    if (!lab || !has) { if (swapHost) { swapHost.remove(); swapHost = null; } if (!lab) peekHas = false; return; }
+    const wrap = lab.parentElement;
+    if (swapHost && swapHost.isConnected && swapHost.parentElement === wrap) return;
+    if (swapHost) swapHost.remove();
+    swapHost = document.createElement('div');
+    const r = swapHost.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{box-sizing:border-box;font:400 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:3px 10px;border:1px solid #d1d1d1;border-radius:4px;background:#fff;color:#242424;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.12);transition:background .1s,border-color .1s}button:hover{background:#f5f5f5;border-color:#c7c7c7}button:active{background:#e0e0e0;border-color:#b3b3b3}button:focus-visible{outline:2px solid #000;outline-offset:1px}button:disabled{opacity:.6;cursor:default}';
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Swap'); b.onclick = () => swapContacts(b);
+    r.append(st, b);
+    wrap.appendChild(swapHost);
   }
 
   function ticketTick() {
@@ -870,6 +885,7 @@
     try { rcTick(); } catch (_) { /* ignora */ }
     try { ticketTick(); } catch (_) { /* ignora */ }
     try { clearTick(); } catch (_) { /* ignora */ }
+    swapTick().catch(() => {});
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }
