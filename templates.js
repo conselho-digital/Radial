@@ -1062,6 +1062,7 @@
     const TAG = '[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_selected_tag"]';
     const count = () => { const d = getDlg(); return d ? d.querySelectorAll(TAG).length : 0; };
     const inputOf = () => { const d = getDlg(); const i = (d && d.querySelector(QUEUE_INPUT)) || qv(QUEUE_INPUT); return i && visible(i) ? i : null; };
+    await waitFor(() => count() || inputOf(), 4000, 50);   // o conteúdo da janela carrega depois da janela: espera a fila ou a caixa vazia
     const trace = [];
     const desc = (e) => !e ? 'none' : (e.tagName || '?') + (e.getAttribute && (e.getAttribute('data-id') || e.getAttribute('aria-label')) ? '[' + String(e.getAttribute('data-id') || e.getAttribute('aria-label')).slice(-34) + ']' : '');
     let keyErr = '';
