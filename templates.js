@@ -760,9 +760,7 @@
     realClick(sc);
     await waitFor(() => !qv('input[data-id="msdyn_deviceid.fieldControl-text-box-text"]'), 10000, 100);
     await sleep(500);
-    const main = await waitFor(() => qv('li[data-id="tablist-tabMain"]'), 5000);
-    if (main) realClick(main);
-    await waitFor(() => qv(TITLE_SEL), 6000);
+    await goMain();
   }
 
   let ticketHost = null, ticketBusy = false, ticketDlg = null, ticketRun = 0;
@@ -777,6 +775,15 @@
     if (m[1].replace(/^0+/, '') === cur) return '';
     const pre = title.slice(0, m.index).replace(/[:\s]+$/, '').trim();
     return pre || 'Reopened_' + m[1];
+  }
+  // Volta para a aba Main buscando o botão de novo (depois de abrir/fechar o asset a barra de abas é recriada: o botão guardado fica velho).
+  async function goMain() {
+    for (let n = 0; n < 3; n++) {
+      const m = qv('li[data-id="tablist-tabMain"]');
+      if (m) { realClick(m); if (n) m.click(); }
+      if (await waitFor(() => qv(TITLE_SEL), 2500)) return true;
+    }
+    return false;
   }
   // Abre o Main Asset (clique no link, na aba Product), lê Serial Number e Device ID do registro e fecha com Save & Close
   // (sem mudar nada). Devolve {} se o registro não abrir: aí vale o serial da tabela de Assets.
@@ -839,9 +846,9 @@
       }
     }
     d.serialFound = !!d.serial;           // sem serial não há asset: não pergunta o Device ID
-    realClick(tabM);
-    const input = await waitFor(() => qv(TITLE_SEL), 6000);
-    if (!input) throw new Error(tr('Case Title field not found.'));
+    await goMain();
+    const input = await waitFor(() => qv(TITLE_SEL), 3000);
+    if (!input) throw new Error(tr('Could not go back to the Main tab.'));
     const i = input.value.lastIndexOf(']');
     d.rest = i >= 0 ? input.value.slice(i + 1).trim() : norm(input.value);
     d.reopened = reopenedText(input.value);
