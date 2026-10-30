@@ -702,17 +702,15 @@
     if (warrantyValue && ddValue(main).toLowerCase() !== warrantyValue.toLowerCase()) await chooseOption(main, warrantyValue);
   }
 
-  // Antes de qualquer mudança: Save do caso (se houver a barra vermelha "Required fields must be filled in" o Save falharia: pula).
+  // Antes de qualquer mudança: Save do caso. Espera o "- Unsaved" virar "- Saved" (se não virar, segue depois de 5 s).
   const unsavedNow = () => [...document.querySelectorAll('span,div')].some((e) => e.children.length === 0 && visible(e) && /^-?\s*Unsaved$/i.test(norm(e.textContent)));
-  const requiredBar = () => [...document.querySelectorAll('li[id^="notificationWrapper"], [data-id="warningNotification"]')].some((e) => visible(e) && /required fields must be filled in/i.test(e.textContent));
   async function saveCaseFirst() {
-    if (requiredBar()) return;
     const b = qv('button[data-id="incident|NoRelationship|Form|Mscrm.Form.incident.Save"]');
     if (!b) return;
     const was = unsavedNow();
     realClick(b);
-    if (was) await waitFor(() => !unsavedNow() || requiredBar(), 8000, 100);
-    await sleep(400);
+    if (was) await waitFor(() => !unsavedNow(), 5000, 100);
+    await sleep(300);
   }
 
   // Duplo clique (abre o registro do asset).
