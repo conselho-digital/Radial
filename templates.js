@@ -633,6 +633,7 @@
     d.sw = detectSoftware(d.fam) || ((d.swFamily || !detectCharger(d.fam)) && prodSw) || null;
     d.charger = d.sw || d.swFamily ? null : detectCharger(d.fam);
     d.product = prodTag || '';
+    if (d.sw || d.swFamily) d.serial = (await waitFor(assetSerial, 2500)) || '';   // software: o asset costuma não existir
     if (!d.sw && !d.swFamily) {
       d.serial = (await waitFor(assetSerial, 7000)) || '';
       if (!d.charger || d.charger.key === 'SI-D') d.dev = (await waitFor(deviceId, 4000)) || '';
@@ -695,7 +696,7 @@
       body.textContent = '';
       if (!d.cc) return askCountry();
       if (!d.sw && !d.charger) return askType(!!d.swFamily);
-      if (!d.sw && !d.serial && !d.serialAsked) return askSerial();
+      if (!d.serial && !d.serialAsked) return askSerial();
       if (d.charger && d.charger.key === 'SI-D' && !d.dev && !d.devAsked) return askDevice();
       return finalStep();
     }
