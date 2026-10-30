@@ -339,7 +339,7 @@
   }
   const subjectSeen = new WeakMap();
   function subjectTick() {
-    if (!enabled()) return;
+    if (!hostOk()) return;                 // não depende do cartão de templates
     const s = isEmailDraft();
     if (!s) return;
     let st = subjectSeen.get(s);
