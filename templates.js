@@ -702,6 +702,51 @@
     if (warrantyValue && ddValue(main).toLowerCase() !== warrantyValue.toLowerCase()) await chooseOption(main, warrantyValue);
   }
 
+  // Antes de qualquer mudança: Save do caso (se houver a barra vermelha "Required fields must be filled in" o Save falharia: pula).
+  const unsavedNow = () => [...document.querySelectorAll('span,div')].some((e) => e.children.length === 0 && visible(e) && /^-?\s*Unsaved$/i.test(norm(e.textContent)));
+  const requiredBar = () => [...document.querySelectorAll('li[id^="notificationWrapper"], [data-id="warningNotification"]')].some((e) => visible(e) && /required fields must be filled in/i.test(e.textContent));
+  async function saveCaseFirst() {
+    if (requiredBar()) return;
+    const b = qv('button[data-id="incident|NoRelationship|Form|Mscrm.Form.incident.Save"]');
+    if (!b) return;
+    const was = unsavedNow();
+    realClick(b);
+    if (was) await waitFor(() => !unsavedNow() || requiredBar(), 8000, 100);
+    await sleep(400);
+  }
+
+  // Duplo clique (abre o registro do asset).
+  function dblClick(el) {
+    const o = { bubbles: true, cancelable: true, composed: true, view: window, button: 0 };
+    for (const n of [1, 2]) {
+      ['mousedown', 'mouseup', 'click'].forEach((t) => el.dispatchEvent(new MouseEvent(t, { ...o, detail: n })));
+    }
+    el.dispatchEvent(new MouseEvent('dblclick', { ...o, detail: 2 }));
+  }
+  const serialCellEl = () => qv('[col-id="sie_serialnumber"]') || qv('[data-automationid="ListCell"] span[class*="headerText"]') || qv('[data-automationid="ListCell"]');
+
+  // Botão Add do pedido de Device ID: abre a aba Product, duplo clique no serial do asset, escreve o Device ID, Save & Close, volta a Main.
+  async function addDeviceToAsset(id) {
+    const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
+    if (!tabP || !tabM) throw new Error(tr('Product and Main tabs not found.'));
+    realClick(tabP);
+    const cell = await waitFor(serialCellEl, 7000);
+    if (!cell) throw new Error(tr('Asset serial number not found.'));
+    dblClick(cell);
+    const inp = await waitFor(() => qv('input[data-id="msdyn_deviceid.fieldControl-text-box-text"]'), 12000);
+    if (!inp) throw new Error(tr('Asset Device ID field not found.'));
+    typeInto(inp, id); inp.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(300);
+    const sc = await waitFor(() => qv('button[data-id="msdyn_customerasset|NoRelationship|Form|Mscrm.Form.msdyn_customerasset.SaveAndClose"]'), 6000);
+    if (!sc) throw new Error(tr('Save & Close button not found.'));
+    realClick(sc);
+    await waitFor(() => !qv('input[data-id="msdyn_deviceid.fieldControl-text-box-text"]'), 10000, 100);
+    await sleep(500);
+    const main = await waitFor(() => qv('li[data-id="tablist-tabMain"]'), 5000);
+    if (main) realClick(main);
+    await waitFor(() => qv(TITLE_SEL), 6000);
+  }
+
   let ticketHost = null, ticketBusy = false, ticketDlg = null, ticketRun = 0;
 
   // Passa pela aba Product (família, serial do asset, Device ID), volta a Main e lê o título atual.
@@ -746,6 +791,7 @@
     ticketBusy = true; btn.disabled = true;
     const run = ++ticketRun;
     try {
+      await saveCaseFirst();
       const name = countryName();
       const d = { id: ticketId(), cc: countryToCode(name), fam: '', charger: null, sw: null, serial: '', dev: '', rest: '', run };
       if (d.cc) { await collectProduct(d); if (run === ticketRun) openTicketDialog(d); }
@@ -850,13 +896,22 @@
       const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the Device ID');
       body.appendChild(inp);
       const act = mk('div', 'act');
+      const addB = mk('button', 'btn g', tr('Add')); addB.type = 'button'; addB.title = tr('Write this Device ID on the asset (Product tab) and save it');
       const skip = mk('button', 'btn g', tr('Skip')); skip.type = 'button';
       const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
       const go = () => { d.dev = norm(inp.value); d.devAsked = true; step(); };
       skip.onclick = () => { d.dev = ''; d.devAsked = true; step(); };
       ok.onclick = go;
+      addB.onclick = async () => {
+        const v = norm(inp.value);
+        if (!v) { inp.focus(); return; }
+        busy(tr('Saving the Device ID on the asset…'));
+        try { await addDeviceToAsset(v); } catch (e) { toast([tr('Device ID'), String(e && e.message || e)], true, 8000); }
+        if (d.closed) return;
+        d.dev = v; d.devAsked = true; step();
+      };
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
-      act.append(skip, ok); body.appendChild(act);
+      act.append(addB, skip, ok); body.appendChild(act);
       setTimeout(() => inp.focus(), 30);
     }
     function finalStep() {
