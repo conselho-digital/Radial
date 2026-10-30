@@ -728,10 +728,22 @@
     const tabP = qv('li[data-id="tablist-tabProduct"]'), tabM = qv('li[data-id="tablist-tabMain"]');
     if (!tabP || !tabM) throw new Error(tr('Product and Main tabs not found.'));
     realClick(tabP);
-    const cell = await waitFor(serialCellEl, 7000);
-    if (!cell) throw new Error(tr('Asset serial number not found.'));
-    dblClick(cell);
-    const inp = await waitFor(() => qv('input[data-id="msdyn_deviceid.fieldControl-text-box-text"]'), 12000);
+    // abre o asset clicando no Main Asset (link); se não abrir, clique nativo e, por último, duplo clique no serial da tabela
+    const MA_TAG = '[data-id="sie_mainassetid.fieldControl-LookupResultsDropdown_sie_mainassetid_selected_tag"]';
+    const DEVICE = 'input[data-id="msdyn_deviceid.fieldControl-text-box-text"]';
+    const tag = await waitFor(() => qv(MA_TAG), 7000);
+    let inp = null;
+    if (tag) {
+      realClick(tag);
+      inp = await waitFor(() => qv(DEVICE), 4000);
+      if (!inp) { tag.click(); inp = await waitFor(() => qv(DEVICE), 3000); }
+    }
+    if (!inp) {
+      const cell = await waitFor(serialCellEl, 3000);
+      if (!cell && !tag) throw new Error(tr('Main Asset not found.'));
+      if (cell) dblClick(cell);
+      inp = await waitFor(() => qv(DEVICE), 12000);
+    }
     if (!inp) throw new Error(tr('Asset Device ID field not found.'));
     typeInto(inp, id); inp.dispatchEvent(new Event('change', { bubbles: true }));
     await sleep(300);
@@ -939,7 +951,8 @@
               if (!r || !r.ok) toast([tr('Update title'), (r && r.error) || tr('Failed to run.')], true, 5000);
             } catch (_) { /* extensão recarregada */ }
           }
-          await syncStage();
+          try { await syncStage(); } catch (e) { toast([tr('Update title'), String(e && e.message || e)], true); }
+          await saveCaseFirst();          // no fim, salva de novo (mesmo que a etapa tenha falhado)
         })().catch((e) => toast([tr('Update title'), String(e && e.message || e)], true));
       };
       ap.onclick = apply;
