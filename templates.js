@@ -1052,22 +1052,33 @@
     const btn = await waitFor(() => qv('button[data-id="incident|NoRelationship|Form|Mscrm.Form.incident.AddToQueue"]'), 4000);
     if (!btn) throw new Error(tr('Add to Queue button not found.'));
     realClick(btn);
-    const dlg = await waitFor(() => qv(QUEUE_DLG), 6000);
-    if (!dlg) throw new Error(tr('Add to Queue window not found.'));
-    // a fila atual já vem escolhida: remove todas as escolhidas (× de cada uma) antes de buscar a nova
+    // a janela pode ser recriada pelo Dynamics: sempre busca de novo, nunca guarda o elemento
+    const getDlg = () => qv(QUEUE_DLG) || [...document.querySelectorAll('[role="dialog"]')].find((d) => visible(d) && d.querySelector(`[data-id^="businessqueues_id"]`));
+    if (!(await waitFor(getDlg, 6000))) throw new Error(tr('Add to Queue window not found.'));
+    // a fila atual já vem escolhida: remove todas (× de cada uma) antes de buscar a nova
     const DEL = 'button[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_selected_tag_delete"]';
-    for (let n = 0; n < 5; n++) {
-      const dels = [...dlg.querySelectorAll(DEL)];
-      if (!dels.length) break;
-      realClick(dels[0]);
-      await waitFor(() => dlg.querySelectorAll(DEL).length < dels.length, 1500, 50);
+    const count = () => { const d = getDlg(); return d ? d.querySelectorAll(DEL).length : 0; };
+    for (let n = 0; n < 5 && count(); n++) {
+      const before = count();
+      // vários jeitos de clicar no ×, até a fila sumir: ícone, botão, teclado, clique nativo
+      for (const how of ['icon', 'button', 'key', 'native']) {
+        const d = getDlg(); const del = d && d.querySelector(DEL);
+        if (!del) break;
+        if (how === 'icon') realClick(del.querySelector('[data-id$="microsoftIcon_cancelButton"]') || del);
+        else if (how === 'button') realClick(del);
+        else if (how === 'key') { del.focus(); pressKey(del, 'Enter'); }
+        else del.click();
+        if (await waitFor(() => count() < before, 1200, 50)) break;
+      }
     }
     await sleep(200);
-    const input = await waitFor(() => { const i = dlg.querySelector(QUEUE_INPUT); return i && visible(i) ? i : null; }, 5000);
-    if (!input) throw new Error(tr('Queue box not found.'));
-    const ok = await pickLookup(input, text, '*' + text, () => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled; });
+    const inputOf = () => { const d = getDlg(); const i = d && d.querySelector(QUEUE_INPUT); return i && visible(i) ? i : null; };
+    const input = await waitFor(inputOf, 5000);
+    if (!input) throw new Error(tr('Queue box not found.') + (count() ? ' (' + tr('current queue could not be removed') + ')' : ''));
+    const okBtn = () => { const d = getDlg(); const b = d && d.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; };
+    const ok = await pickLookup(input, text, '*' + text, () => !!okBtn());
     if (!ok) throw new Error(tr('No record found for "{name}".', { name: text }));
-    const add = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
+    const add = await waitFor(okBtn, 5000);
     if (!add) throw new Error(tr('Add button stayed disabled.'));
     realClick(add);
   }
@@ -1089,7 +1100,7 @@
       realClick(go);
       if (!noQueue) await addToQueue(text);
     } catch (e) {
-      toast([tr('Assign'), String(e && e.message || e)], true, 5000);
+      toast([tr('Assign'), String(e && e.message || e)], true, 8000);
     } finally { assignBusy = false; }
   }
 
