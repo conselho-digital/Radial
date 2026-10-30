@@ -1068,7 +1068,12 @@
     let keyErr = '';
     const real = async (keys) => { try { const r = await chrome.runtime.sendMessage({ type: 'press-keys', keys }); if (!r || !r.ok) keyErr = (r && r.error) || 'no response'; } catch (e) { keyErr = String(e && e.message || e); } };
     if (count()) {
-      // O mesmo que você faz à mão: foco no começo da janela, Tab (cai na etiqueta da fila), Delete. Teclas de verdade do navegador.
+      // 1) rodando no mundo da página (o mesmo teste que removeu na hora no seu console): clique nativo, eventos, Delete, Backspace
+      try { const r = await chrome.runtime.sendMessage({ type: 'queue-clear' }); trace.push('page:' + ((r && (r.method || r.error)) || 'none')); } catch (e) { trace.push('page-err:' + String(e && e.message || e)); }
+      await waitFor(() => !count(), 800, 40);
+    }
+    if (count()) {
+      // 2) plano B: foco no começo da janela, Tab (cai na etiqueta da fila), Delete. Teclas de verdade do navegador.
       const d = getDlg();
       (d.querySelector('[data-id="dialogCloseIconButton"]') || d).focus();
       await real(['Tab']);

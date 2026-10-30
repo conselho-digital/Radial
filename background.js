@@ -452,6 +452,41 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Janela "Add to Queue": tira a fila escolhida rodando no mundo da página (onde o clique nativo funciona):
+  // clique nativo no ×, depois eventos de mouse, depois Delete e Backspace na etiqueta. Para na primeira que remove.
+  if (msg.type === 'queue-clear' && sender.tab && sender.frameId === 0) {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      world: 'MAIN',
+      func: async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const d = document.querySelector('[data-id="AddToQueue"]');
+        if (!d) return { ok: false, error: 'window' };
+        const sel = 'button[data-id$="selected_tag_delete"]';
+        const n = () => d.querySelectorAll(sel).length;
+        if (!n()) return { ok: true, method: 'none' };
+        const gone = async (before) => { for (let i = 0; i < 16; i++) { if (n() < before) return true; await wait(50); } return false; };
+        const del = d.querySelector(sel), tag = d.querySelector('[data-id$="selected_tag"]');
+        const r = del.getBoundingClientRect();
+        const o = { bubbles: true, cancelable: true, view: window, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2, button: 0, pointerType: 'mouse', isPrimary: true };
+        const key = (k, c) => { tag.focus(); ['keydown', 'keyup'].forEach((t) => tag.dispatchEvent(new KeyboardEvent(t, { key: k, keyCode: c, bubbles: true }))); };
+        const T = {
+          native: () => del.click(),
+          events: () => ['pointerover', 'mouseover', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((t) => del.dispatchEvent(new (t.startsWith('pointer') ? PointerEvent : MouseEvent)(t, o))),
+          delete: () => key('Delete', 46),
+          backspace: () => key('Backspace', 8),
+        };
+        for (const [k, f] of Object.entries(T)) {
+          const b = n();
+          f();
+          if (await gone(b)) return { ok: true, method: k };
+        }
+        return { ok: false, error: 'not removed' };
+      },
+    }).then((r) => sendResponse((r && r[0] && r[0].result) || { ok: false, error: 'no response' })).catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
+    return true;
+  }
+
   // Teclas de verdade (teclado do navegador) na aba: usadas para Tab + Delete na janela "Add to Queue".
   if (msg.type === 'press-keys' && sender.tab && sender.frameId === 0 && Array.isArray(msg.keys)) {
     const CODES = { Tab: { vk: 9, code: 'Tab' }, Delete: { vk: 46, code: 'Delete' } };
