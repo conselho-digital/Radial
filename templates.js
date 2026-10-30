@@ -18,7 +18,8 @@
   const PREV_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team\nFlex | eMobility TS Flex Team\nTS Legacy | eMobility TS Legacy Siemens Team';
   const PREV2_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
   const PREV3_QUEUES = 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
-  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex | L\nFlex | eMobility TS Flex | L\nTS Legacy | eMobility TS Legacy Siemens';
+  const PREV4_QUEUES = 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex | L\nFlex | eMobility TS Flex | L\nTS Legacy | eMobility TS Legacy Siemens';
+  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2 | Q=eMobility Inbound Queue\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex | L\nFlex | eMobility TS Flex | L\nTS Legacy | eMobility TS Legacy Siemens';
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
   let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, assignBtns: true, assignQueues: DEFAULT_QUEUES, emailTplKeep: 15, emailTplSee: 8 };
@@ -1038,9 +1039,10 @@
   const QUEUE_COLORS = ['#0f6cbd', '#8764b8', '#038387', '#ca5010', '#498205', '#c239b3', '#5c2e91', '#0b6a0b'];
   const ASSIGN_DD = 'button[data-id="rdoMe_id.fieldControl-option-set-select"]';
   const ASSIGN_INPUT = 'input[data-id="systemuserview_id.fieldControl-LookupResultsDropdown_systemuserview_id_textInputBox_with_filter_new"]';
-  // Linha: "Botão | Conteúdo" + marcas opcionais depois: L = lado esquerdo da janela; NQ = não faz o Add to Queue
-  const parseQueues = () => String(settings.assignQueues == null || [OLD_QUEUES, PREV_QUEUES, PREV2_QUEUES, PREV3_QUEUES].includes(settings.assignQueues) ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
-    .map((l) => { const p = l.split('|').map(norm); const fl = p.slice(2).map((x) => x.toUpperCase()); return p.length < 2 ? null : { label: p[0], text: p[1].replace(/^\*+/, '').trim(), left: fl.includes('L') || fl.includes('LEFT'), noQueue: fl.includes('NQ') }; })
+  // Linha: "Botão | Conteúdo" + marcas opcionais depois: L = lado esquerdo da janela; NQ = não faz o Add to Queue;
+  // Q=<fila> = no Add to Queue escreve essa fila (o Assign continua com o Conteúdo)
+  const parseQueues = () => String(settings.assignQueues == null || [OLD_QUEUES, PREV_QUEUES, PREV2_QUEUES, PREV3_QUEUES, PREV4_QUEUES].includes(settings.assignQueues) ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
+    .map((l) => { const p = l.split('|').map(norm); const fl = p.slice(2).map((x) => x.toUpperCase()); return p.length < 2 ? null : { label: p[0], text: p[1].replace(/^\*+/, '').trim(), left: fl.includes('L') || fl.includes('LEFT'), noQueue: fl.includes('NQ'), queue: ((p.slice(2).find((x) => /^q\s*=/i.test(x)) || '').replace(/^q\s*=\s*/i, '').replace(/^\*+/, '').trim()) }; })
     .filter((q) => q && q.label && q.text);
   const TR_COUNTRIES = new Set(['AE', 'SA', 'QA', 'KW', 'TH', 'SG', 'NZ', 'AU']);
   const titleCountry = () => { const m = /\/([A-Za-z]{2})-\[/.exec(caseTitleText()); return m ? m[1].toUpperCase() : ''; };
@@ -1099,7 +1101,7 @@
     realClick(add);
   }
 
-  async function runAssign(text, noQueue) {
+  async function runAssign(text, noQueue, queueText) {
     if (assignBusy) return;
     assignBusy = true;
     try {
@@ -1114,7 +1116,7 @@
       const go = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
       if (!go) throw new Error(tr('Assign button stayed disabled.'));
       realClick(go);
-      if (!noQueue) await addToQueue(text);
+      if (!noQueue) await addToQueue(queueText || text);
     } catch (e) {
       toast([tr('Assign'), String(e && e.message || e)], true, 20000);
     } finally { assignBusy = false; }
@@ -1129,9 +1131,9 @@
     list.forEach((q) => {
       const row = document.createElement('div'); row.className = left ? 'row l' : 'row';
       const b = document.createElement('button'); b.type = 'button'; b.title = '*' + q.text; b.style.background = q.color; b.textContent = q.label;
-      b.onclick = () => runAssign(q.text, q.noQueue);
+      b.onclick = () => runAssign(q.text, q.noQueue, q.queue);
       const t = document.createElement('span'); t.className = 't'; t.textContent = q.text; t.title = '*' + q.text;
-      t.onclick = () => runAssign(q.text, q.noQueue);
+      t.onclick = () => runAssign(q.text, q.noQueue, q.queue);
       row.append(b, t);
       col.appendChild(row);
     });
