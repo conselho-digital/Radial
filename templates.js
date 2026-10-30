@@ -899,17 +899,28 @@
     if (/[?&]pagetype=/i.test(u)) return u;
     return u.replace(/&etn=incident&id=/i, '&pagetype=entityrecord&etn=incident&id=');
   }
+  // Título: o que está na caixa Case Title (o texto de verdade); só se ela não existir (outra aba) usa o do cabeçalho.
   function caseTitleText() {
-    const h = qv('[data-id="header_title"]');
-    const t = h && norm(h.getAttribute('title') || h.textContent);
-    if (t) return t;
     const i = document.querySelector(TITLE_SEL);
-    return i ? norm(i.value) : '';
+    const v = i && norm(i.value);
+    if (v) return v;
+    const h = qv('[data-id="header_title"]');
+    return h ? norm(h.getAttribute('title') || h.textContent) : '';
   }
-  async function copyRich(title, url) {
+  // First Response Sent diferente de "Yes" (e o campo existe): o link leva uma linha antes, conforme o carregador.
+  function slaPrefix(title) {
+    const f = qv('input[aria-label="First Response Sent"]');
+    if (!f || norm(f.value).toLowerCase() === 'yes') return '';
+    if (/\/SI-UC\//i.test(title)) return 'Sicharge UC SLA⭐';
+    if (/\/SI-D\//i.test(title)) return 'Sicharge-D SLA  ✨';
+    return '';
+  }
+  async function copyRich(title, url, prefix) {
     const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const html = `<a href="${esc(url)}">${esc(title || url)}</a>`;
-    const text = title ? `${title} - ${url}` : url;
+    const link = `<a href="${esc(url)}">${esc(title || url)}</a>`;
+    const html = prefix ? `${esc(prefix).replace(/ {2}/g, '&nbsp; ')}<br>${link}` : link;
+    const body = title ? `${title} - ${url}` : url;
+    const text = prefix ? `${prefix}\n${body}` : body;
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
       return true;
@@ -935,7 +946,8 @@
     const url = caseLink();
     if (!url) return;                                  // não é um caso: comportamento normal
     e.preventDefault(); e.stopImmediatePropagation();
-    const ok = await copyRich(caseTitleText(), url);
+    const title = caseTitleText();
+    const ok = await copyRich(title, url, slaPrefix(title));
     toast([ok ? tr('Ticket link copied') : tr('Could not copy the link.')], !ok, 2500);
   }, true);
 
