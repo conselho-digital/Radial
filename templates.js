@@ -704,6 +704,8 @@
 
   // Antes de qualquer mudança: Save do caso. Espera o "- Unsaved" virar "- Saved"; se não virar, o Update title para.
   const unsavedNow = () => [...document.querySelectorAll('span,div')].some((e) => e.children.length === 0 && visible(e) && /^-?\s*Unsaved$/i.test(norm(e.textContent)));
+  // Barra vermelha/amarela de aviso no topo do formulário (ex.: "Required fields must be filled in"): texto, ou '' se não há.
+  const barText = () => { const e = [...document.querySelectorAll('[data-id="warningNotification"],[data-id="errorNotification"]')].find(visible); return e ? norm(e.textContent) : ''; };
   // Se o caso tem o campo "First Response Sent", a Priority tem que ser High (antes do primeiro Save).
   async function priorityHigh() {
     const has = qv('label[id$="firstresponsesent-field-label"]') || [...document.querySelectorAll('label')].find((l) => visible(l) && norm(l.textContent) === 'First Response Sent');
@@ -720,7 +722,7 @@
     const was = unsavedNow();
     realClick(b);
     let ok = true;
-    if (was) ok = !!(await waitFor(() => !unsavedNow(), 6000, 100));
+    if (was) { await waitFor(() => barText() || !unsavedNow(), 6000, 100); ok = !unsavedNow() && !barText(); }
     await sleep(300);
     return ok;                              // false = continua "Unsaved" (falta campo obrigatório, por exemplo)
   }
@@ -1158,10 +1160,19 @@
     } catch (e) { ui.item('prio', tr('Priority'), 'bad', msg(e)); }
     // 2. Save
     ui.step(tr('Saving the case')); ui.item('save', tr('Save'), 'run');
-    if (!(await saveCaseFirst())) {
-      ui.item('save', tr('Save'), 'bad', tr('Still Unsaved'));
-      toast([tr('Update title'), tr('The case did not save (still Unsaved). Fill in the required fields and try again.')], true, 8000);
-      return;
+    for (;;) {
+      const ok = await saveCaseFirst();
+      const w = barText();
+      if (ok && !w) break;
+      if (!w) {          // continua Unsaved sem aviso: para
+        ui.item('save', tr('Save'), 'bad', tr('Still Unsaved'));
+        toast([tr('Update title'), tr('The case did not save (still Unsaved). Fill in the required fields and try again.')], true, 8000);
+        return;
+      }
+      // Aviso no topo: pára aqui até o mínimo ser preenchido (a barra some), então salva de novo
+      ui.item('save', tr('Save'), 'bad', w);
+      while (barText()) { ui.step(tr('Fill in the required fields'), true); await sleep(500); }
+      ui.step(tr('Saving the case')); await sleep(600);
     }
     ui.item('save', tr('Save'), 'ok');
     d.id = ticketId();
