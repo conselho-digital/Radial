@@ -16,7 +16,7 @@
 
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
-  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, emailTplKeep: 15, emailTplSee: 8 };
+  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, contactSwap: true, emailTplKeep: 15, emailTplSee: 8 };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => hostKey() === HOST || hostKey().endsWith('.' + HOST);
   const enabled = () => !!settings.emailTpl && hostOk();
@@ -831,6 +831,24 @@
     h2.insertAdjacentElement('afterend', clearHost);
   }
 
+  // ---------- Contato: "On behalf of Contact" substitui o "Requester" ao abrir o caso ----------
+  const contactSeen = new Map();
+  async function contactTick() {
+    if (settings.contactSwap === false || !hostOk() || !qv('li[data-id="tablist-tabProduct"]')) return;
+    const key = location.href + '|' + ticketId();
+    let st = contactSeen.get(key);
+    if (!st) contactSeen.set(key, (st = { t0: Date.now(), done: false, busy: false }));
+    if (st.done || st.busy || Date.now() - st.t0 > 30000) return;
+    st.busy = true;
+    try {
+      const r = await chrome.runtime.sendMessage({ type: 'contact-move' });
+      if (r && r.state === 'done') { st.done = true; toast([tr('Contact'), tr('Requester replaced by {name}. On behalf of Contact cleared.', { name: r.name })]); }
+      else if (r && r.state === 'none') st.done = true;
+      else if (r && r.state === 'error') { st.done = true; toast([tr('Contact'), r.message || tr('Failed to run.')], true); }
+      // noform: o formulário ainda não carregou, tenta de novo no próximo ciclo
+    } catch (_) { /* extensão recarregada */ } finally { st.busy = false; }
+  }
+
   function ticketTick() {
     const lab = settings.ticketBtn !== false && hostOk() && qv('div[title^="Case Title"] > label');
     const on = lab && qv('li[data-id="tablist-tabProduct"]');
@@ -852,6 +870,7 @@
     try { rcTick(); } catch (_) { /* ignora */ }
     try { ticketTick(); } catch (_) { /* ignora */ }
     try { clearTick(); } catch (_) { /* ignora */ }
+    contactTick().catch(() => {});
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }
