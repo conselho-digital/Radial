@@ -14,9 +14,10 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
+  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex Team | eMobility TS SiFlex Team\nFlex Team | eMobility TS Flex Team\nTS Legacy Team | eMobility TS Legacy Siemens Team';
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
-  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, emailTplKeep: 15, emailTplSee: 8 };
+  let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, assignBtns: true, assignQueues: DEFAULT_QUEUES, emailTplKeep: 15, emailTplSee: 8 };
   const hostKey = () => location.hostname.toLowerCase().replace(/^www\./, '');
   const hostOk = () => hostKey() === HOST || hostKey().endsWith('.' + HOST);
   const enabled = () => !!settings.emailTpl && hostOk();
@@ -625,9 +626,9 @@
   // Países para escolher quando o campo "Country of Charger" está vazio.
   const countryList = () => regionNames().sort((x, y) => x.name.localeCompare(y.name));
   // Escreve no campo de busca do Dynamics, espera a lista, Enter na primeira opção.
-  async function pickLookup(input, text) {
+  async function pickLookup(input, text, typed) {
     realClick(input);
-    typeInto(input, text);
+    typeInto(input, typed || text);
     const found = await waitFor(() => dropdownRow(input, text.toLowerCase()), 7000, 150);
     if (found) { await sleep(300); pressKey(input, 'Enter'); await sleep(900); } else { wipeInput(input); await sleep(300); }
     return !!found;
@@ -1011,6 +1012,67 @@
     toast([ok ? tr('Ticket link copied') : tr('Could not copy the link.')], !ok, 2500);
   }, true);
 
+  // ---------- Janela "Assign to Team or User": botões de filas ao lado ----------
+  // Cada botão: põe "Assign To" em "User or team", escreve "*<fila>" na caixa, Enter na primeira opção e clica em Assign.
+  const QUEUE_COLORS = ['#0f6cbd', '#8764b8', '#038387', '#ca5010', '#498205', '#c239b3', '#5c2e91', '#0b6a0b'];
+  const ASSIGN_DD = 'button[data-id="rdoMe_id.fieldControl-option-set-select"]';
+  const ASSIGN_INPUT = 'input[data-id="systemuserview_id.fieldControl-LookupResultsDropdown_systemuserview_id_textInputBox_with_filter_new"]';
+  const parseQueues = () => String(settings.assignQueues == null ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
+    .map((l) => { const i = l.indexOf('|'); return i < 0 ? null : { label: norm(l.slice(0, i)), text: norm(l.slice(i + 1)).replace(/^\*+/, '').trim() }; })
+    .filter((q) => q && q.label && q.text);
+  const titleCountry = () => { const m = /\/([A-Za-z]{2})-\[/.exec(caseTitleText()); return m ? m[1].toUpperCase() : ''; };
+  let assignHost = null, assignBusy = false, assignKey = '';
+  const assignDialog = () => qv('[data-id="AssignQueue"]');
+
+  async function runAssign(text) {
+    if (assignBusy) return;
+    assignBusy = true;
+    try {
+      const dlg = assignDialog();
+      if (!dlg) throw new Error(tr('Assign window not found.'));
+      const dd = dlg.querySelector(ASSIGN_DD);
+      if (dd && ddValue(dd).toLowerCase() !== 'user or team') await chooseOption(dd, 'User or team');
+      const input = await waitFor(() => { const i = dlg.querySelector(ASSIGN_INPUT); return i && visible(i) ? i : null; }, 5000);
+      if (!input) throw new Error(tr('User or team box not found.'));
+      const ok = await pickLookup(input, text, '*' + text);
+      if (!ok) throw new Error(tr('No record found for "{name}".', { name: text }));
+      const go = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
+      if (!go) throw new Error(tr('Assign button stayed disabled.'));
+      realClick(go);
+    } catch (e) {
+      toast([tr('Assign'), String(e && e.message || e)], true, 5000);
+    } finally { assignBusy = false; }
+  }
+
+  function assignTick() {
+    const dlg = settings.assignBtns !== false && hostOk() && assignDialog();
+    if (!dlg) { if (assignHost) { assignHost.remove(); assignHost = null; assignKey = ''; } return; }
+    const box = dlg.querySelector('[id^="dialogContentContainer"]') || dlg;
+    const r = box.getBoundingClientRect();
+    const cc = titleCountry();
+    const list = parseQueues().map((q, i) => ({ ...q, color: QUEUE_COLORS[i % QUEUE_COLORS.length] }));
+    if (cc) list.push({ label: 'RC-' + cc, text: 'eMobility RC-' + cc, color: '#d13438' });
+    const key = JSON.stringify(list);
+    if (!assignHost || !assignHost.isConnected || key !== assignKey) {
+      if (assignHost) assignHost.remove();
+      assignKey = key;
+      assignHost = document.createElement('div');
+      const sr = assignHost.attachShadow({ mode: 'open' });
+      const st = document.createElement('style');
+      st.textContent = ':host{position:fixed;z-index:2147483000}.col{display:flex;flex-direction:column;gap:8px}button{font:600 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;text-align:left;padding:6px 14px;border:0;border-radius:4px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3);min-width:150px}button:hover{filter:brightness(.88)}button:active{filter:brightness(.78)}button:disabled{opacity:.6;cursor:default}';
+      const col = document.createElement('div'); col.className = 'col';
+      list.forEach((q) => {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = q.label; b.title = '*' + q.text; b.style.background = q.color;
+        b.onclick = () => runAssign(q.text);
+        col.appendChild(b);
+      });
+      sr.append(st, col);
+      document.body.appendChild(assignHost);
+    }
+    assignHost.style.left = Math.round(r.right + 12) + 'px';
+    assignHost.style.top = Math.round(r.top) + 'px';
+  }
+
   function ticketTick() {
     const lab = settings.ticketBtn !== false && hostOk() && qv('div[title^="Case Title"] > label');
     const on = lab && qv('li[data-id="tablist-tabProduct"]');
@@ -1034,6 +1096,7 @@
     try { ticketTick(); } catch (_) { /* ignora */ }
     try { clearTick(); } catch (_) { /* ignora */ }
     swapTick().catch(() => {});
+    try { assignTick(); } catch (_) { /* ignora */ }
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }
