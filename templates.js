@@ -372,7 +372,7 @@
   const TO_TAG = '[data-id="to.fieldControl-LookupResultsDropdown_to_selected_tag"]';
   let rcHost = null, rcBusy = false, toastHost = null;
 
-  function toast(lines, isErr) {
+  function toast(lines, isErr, ms) {
     if (toastHost) toastHost.remove();
     toastHost = document.createElement('div');
     const r = toastHost.attachShadow({ mode: 'open' });
@@ -384,7 +384,8 @@
     lines.forEach((l, i) => { const e = document.createElement(i === 0 ? 'b' : 'p'); e.textContent = l; box.appendChild(e); });
     const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '×'; x.onclick = () => toastHost.remove();
     box.appendChild(x); r.append(st, box); document.body.appendChild(toastHost);
-    if (isErr) { const mine = toastHost; setTimeout(() => { if (toastHost === mine) { mine.remove(); toastHost = null; } }, 15000); }
+    const ttl = ms || (isErr ? 15000 : 0);
+    if (ttl) { const mine = toastHost; setTimeout(() => { if (toastHost === mine) { mine.remove(); toastHost = null; } }, ttl); }
   }
 
   const nativeSet = (el, v) => Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
@@ -802,16 +803,18 @@
     if (clearBusy) return;
     clearBusy = true; btn.disabled = true;
     try {
-      for (const id of ['productid', 'sie_mainassetid']) {
+      // Ordem: Main Asset, Product, Product Family, Technology (os dois últimos podem ser só leitura)
+      for (const id of ['sie_mainassetid', 'productid', 'sie_productfamilyid', 'sie_technologyid']) {
         const ul = lookupList(id);
         const dels = ul ? [...ul.querySelectorAll(`button[data-id="${id}.fieldControl-LookupResultsDropdown_${id}_selected_tag_delete"]`)] : [];
         for (const d of dels) { realClick(d); await sleep(700); }
       }
       await sleep(800);
-      const left = ['sie_technologyid', 'sie_productfamilyid'].filter((id) => lookupList(id) && lookupList(id).querySelector('[data-id$="_selected_tag"]'));
-      if (left.length) toast([tr('Clear product fields'), tr('Technology and Product Family are read-only and were not cleared.')]);
+      const names = { sie_productfamilyid: 'Product Family', sie_technologyid: 'Technology' };
+      const left = ['sie_productfamilyid', 'sie_technologyid'].filter((id) => lookupList(id) && lookupList(id).querySelector('[data-id$="_selected_tag"]')).map((id) => names[id]);
+      if (left.length) toast([tr('Clear product fields'), tr('{names} are read-only and were not cleared.', { names: left.join(' + ') })], false, 5000);
     } catch (e) {
-      toast([tr('Clear product fields'), String(e && e.message || e)], true);
+      toast([tr('Clear product fields'), String(e && e.message || e)], true, 5000);
     } finally { clearBusy = false; btn.disabled = false; }
   }
   function clearTick() {
