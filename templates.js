@@ -1191,28 +1191,34 @@
     const desc = (e) => !e ? 'none' : (e.tagName || '?') + (e.getAttribute && (e.getAttribute('data-id') || e.getAttribute('aria-label')) ? '[' + String(e.getAttribute('data-id') || e.getAttribute('aria-label')).slice(-34) + ']' : '');
     let keyErr = '';
     const real = async (keys) => { try { const r = await chrome.runtime.sendMessage({ type: 'press-keys', keys }); if (!r || !r.ok) keyErr = (r && r.error) || 'no response'; } catch (e) { keyErr = String(e && e.message || e); } };
-    if (count()) {
-      // 1) rodando no mundo da página (o mesmo teste que removeu na hora no seu console): clique nativo, eventos, Delete, Backspace
-      try { const r = await chrome.runtime.sendMessage({ type: 'queue-clear' }); trace.push('page:' + ((r && (r.method || r.error)) || 'none')); } catch (e) { trace.push('page-err:' + String(e && e.message || e)); }
-      await waitFor(() => !count(), 800, 40);
-    }
-    if (count()) {
-      // 2) plano B: foco no começo da janela, Tab (cai na etiqueta da fila), Delete. Teclas de verdade do navegador.
-      const d = getDlg();
-      (d.querySelector('[data-id="dialogCloseIconButton"]') || d).focus();
-      await real(['Tab']);
-      trace.push('tab->' + desc(document.activeElement));
-      if (!document.activeElement || !document.activeElement.matches || !document.activeElement.matches(TAG)) {
-        const t = getDlg() && getDlg().querySelector(TAG); if (t) t.focus();
-        trace.push('focus->' + desc(document.activeElement));
+    const clearQueueIfAny = async () => {
+      if (count()) {
+        // 1) rodando no mundo da página (o mesmo teste que removeu na hora no seu console): clique nativo, eventos, Delete, Backspace
+        try { const r = await chrome.runtime.sendMessage({ type: 'queue-clear' }); trace.push('page:' + ((r && (r.method || r.error)) || 'none')); } catch (e) { trace.push('page-err:' + String(e && e.message || e)); }
+        await waitFor(() => !count(), 800, 40);
       }
-      await real(['Delete']);
-      await waitFor(() => !count(), 1500, 40);
-      trace.push('left=' + count());
-      if (keyErr) trace.push('keys:' + keyErr);
-    }
+      if (count()) {
+        // 2) plano B: foco no começo da janela, Tab (cai na etiqueta da fila), Delete. Teclas de verdade do navegador.
+        const d = getDlg();
+        (d.querySelector('[data-id="dialogCloseIconButton"]') || d).focus();
+        await real(['Tab']);
+        trace.push('tab->' + desc(document.activeElement));
+        if (!document.activeElement || !document.activeElement.matches || !document.activeElement.matches(TAG)) {
+          const t = getDlg() && getDlg().querySelector(TAG); if (t) t.focus();
+          trace.push('focus->' + desc(document.activeElement));
+        }
+        await real(['Delete']);
+        await waitFor(() => !count(), 1500, 40);
+        trace.push('left=' + count());
+        if (keyErr) trace.push('keys:' + keyErr);
+      }
+    };
+    await waitFor(() => count(), 1500, 50);        // a janela preenche a fila atual um instante depois de abrir: espera ela aparecer
+    await clearQueueIfAny();
     if (trace.length) console.log('Radial: add to queue', trace.join(' | '));
-    const input = await waitFor(inputOf, 5000);
+    let input = await waitFor(inputOf, 5000);
+    await sleep(350);
+    if (count()) { await clearQueueIfAny(); input = await waitFor(inputOf, 5000); }   // a fila voltou depois de tirada (preenchimento tardio): tira de novo
     if (!input) throw new Error(tr('Queue box not found.') + (count() ? ' (' + tr('current queue could not be removed') + ')' : '') + (trace.length ? ' [' + trace.join(' | ') + ']' : ''));
     const okBtn = () => { const d = getDlg(); const b = d && d.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; };
     const ok = await pickLookup(input, text, '*' + text, () => !!okBtn());
