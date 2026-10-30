@@ -567,11 +567,13 @@
       const h = c.querySelector('.ms-TooltipHost');
       const t = h && [...h.childNodes].find((x) => x.nodeType === 3 && norm(x.nodeValue));
       const v = norm((l && l.getAttribute('aria-label')) || (t && t.nodeValue) || c.textContent);
-      if (v && !/^serial/i.test(v)) return v;
+      if (v && !/^serial/i.test(v) && !emptyText(v)) return v;
     }
     return '';
   }
-  const deviceId = () => { const i = qv('input[aria-label="Device ID"]'); return i ? norm(i.value || i.getAttribute('title')) : ''; };
+  // Campo vazio: o Dynamics põe "Select to enter data" no title, então só vale o value.
+  const emptyText = (v) => !v || /^(select to enter data|---)$/i.test(v);
+  const deviceId = () => { const i = qv('input[aria-label="Device ID"]'); const v = i ? norm(i.value) : ''; return emptyText(v) ? '' : v; };
 
   // Países para escolher quando o campo "Country of Charger" está vazio.
   const countryList = () => regionNames().sort((x, y) => x.name.localeCompare(y.name));
@@ -689,6 +691,7 @@
       if (!d.cc) return askCountry();
       if (!d.sw && !d.charger) return askType(false);
       if (!d.sw && !d.serial && !d.serialAsked) return askSerial();
+      if (d.charger && d.charger.key === 'SI-D' && !d.dev && !d.devAsked) return askDevice();
       return finalStep();
     }
     function askCountry() {
@@ -739,6 +742,20 @@
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
       act.append(ok); body.appendChild(act);
       setTimeout(() => { inp.focus(); inp.select(); }, 30);
+    }
+    function askDevice() {
+      body.append(mk('div', 'lbl', tr('Device ID not found')));
+      const inp = mk('input'); inp.spellcheck = false; inp.placeholder = tr('Type the Device ID');
+      body.appendChild(inp);
+      const act = mk('div', 'act');
+      const skip = mk('button', 'btn g', tr('Skip')); skip.type = 'button';
+      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button';
+      const go = () => { d.dev = norm(inp.value); d.devAsked = true; step(); };
+      skip.onclick = () => { d.dev = ''; d.devAsked = true; step(); };
+      ok.onclick = go;
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      act.append(skip, ok); body.appendChild(act);
+      setTimeout(() => inp.focus(), 30);
     }
     function finalStep() {
       body.textContent = '';
