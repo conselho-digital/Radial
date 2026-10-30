@@ -14,7 +14,8 @@
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const visible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
 
-  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex Team | eMobility TS SiFlex Team\nFlex Team | eMobility TS Flex Team\nTS Legacy Team | eMobility TS Legacy Siemens Team';
+  const OLD_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex Team | eMobility TS SiFlex Team\nFlex Team | eMobility TS Flex Team\nTS Legacy Team | eMobility TS Legacy Siemens Team';
+  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team\nFlex | eMobility TS Flex Team\nTS Legacy | eMobility TS Legacy Siemens Team';
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
   let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, assignBtns: true, assignQueues: DEFAULT_QUEUES, emailTplKeep: 15, emailTplSee: 8 };
@@ -1017,12 +1018,40 @@
   const QUEUE_COLORS = ['#0f6cbd', '#8764b8', '#038387', '#ca5010', '#498205', '#c239b3', '#5c2e91', '#0b6a0b'];
   const ASSIGN_DD = 'button[data-id="rdoMe_id.fieldControl-option-set-select"]';
   const ASSIGN_INPUT = 'input[data-id="systemuserview_id.fieldControl-LookupResultsDropdown_systemuserview_id_textInputBox_with_filter_new"]';
-  const parseQueues = () => String(settings.assignQueues == null ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
+  const parseQueues = () => String(settings.assignQueues == null || settings.assignQueues === OLD_QUEUES ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
     .map((l) => { const i = l.indexOf('|'); return i < 0 ? null : { label: norm(l.slice(0, i)), text: norm(l.slice(i + 1)).replace(/^\*+/, '').trim() }; })
     .filter((q) => q && q.label && q.text);
+  const TR_COUNTRIES = new Set(['AE', 'SA', 'QA', 'KW', 'TH', 'SG', 'NZ', 'AU']);
   const titleCountry = () => { const m = /\/([A-Za-z]{2})-\[/.exec(caseTitleText()); return m ? m[1].toUpperCase() : ''; };
   let assignHost = null, assignBusy = false, assignKey = '';
   const assignDialog = () => qv('[data-id="AssignQueue"]');
+
+  // Depois do Assign: botão "Add to Queue" da barra, escreve "*<fila>" no campo Queue (apagando a fila que já estava), Enter e Add.
+  const QUEUE_DLG = '[data-lp-id="dialogView|AddToQueue"], [data-id="AddToQueue"]';
+  const QUEUE_INPUT = 'input[data-id^="businessqueues_id.fieldControl-LookupResultsDropdown"][data-id$="textInputBox_with_filter_new"]';
+  async function addToQueue(text) {
+    if (!(await waitFor(() => !assignDialog(), 10000, 100))) throw new Error(tr('Assign window did not close.'));
+    await sleep(400);
+    const btn = await waitFor(() => qv('button[data-id="incident|NoRelationship|Form|Mscrm.Form.incident.AddToQueue"]'), 4000);
+    if (!btn) throw new Error(tr('Add to Queue button not found.'));
+    realClick(btn);
+    const dlg = await waitFor(() => qv(QUEUE_DLG), 6000);
+    if (!dlg) throw new Error(tr('Add to Queue window not found.'));
+    // a fila atual já vem escolhida: apaga para aparecer a caixa de busca
+    for (let n = 0; n < 3 && !dlg.querySelector(QUEUE_INPUT); n++) {
+      const del = dlg.querySelector('button[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_selected_tag_delete"]');
+      if (!del) break;
+      realClick(del);
+      await sleep(400);
+    }
+    const input = await waitFor(() => { const i = dlg.querySelector(QUEUE_INPUT); return i && visible(i) ? i : null; }, 5000);
+    if (!input) throw new Error(tr('Queue box not found.'));
+    const ok = await pickLookup(input, text, '*' + text);
+    if (!ok) throw new Error(tr('No record found for "{name}".', { name: text }));
+    const add = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
+    if (!add) throw new Error(tr('Add button stayed disabled.'));
+    realClick(add);
+  }
 
   async function runAssign(text) {
     if (assignBusy) return;
@@ -1039,6 +1068,7 @@
       const go = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
       if (!go) throw new Error(tr('Assign button stayed disabled.'));
       realClick(go);
+      await addToQueue(text);
     } catch (e) {
       toast([tr('Assign'), String(e && e.message || e)], true, 5000);
     } finally { assignBusy = false; }
@@ -1051,7 +1081,9 @@
     const r = box.getBoundingClientRect();
     const cc = titleCountry();
     const list = parseQueues().map((q, i) => ({ ...q, color: QUEUE_COLORS[i % QUEUE_COLORS.length] }));
-    if (cc) list.push({ label: 'RC-' + cc, text: 'eMobility RC-' + cc, color: '#d13438' });
+    // EAU, Arábia Saudita, Catar, Kuwait, Tailândia, Singapura, Nova Zelândia e Austrália são atendidos pelo RC-TR
+    const rc = TR_COUNTRIES.has(cc) ? 'TR' : cc;
+    if (rc) list.push({ label: 'RC-' + rc, text: 'eMobility RC-' + rc, color: '#d13438' });
     const key = JSON.stringify(list);
     if (!assignHost || !assignHost.isConnected || key !== assignKey) {
       if (assignHost) assignHost.remove();
