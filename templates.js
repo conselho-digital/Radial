@@ -733,6 +733,43 @@
     step();
   }
 
+  // ---------- Botão × na aba Product: limpa Product e Main Asset (Technology e Product Family são só leitura) ----------
+  let clearHost = null, clearBusy = false;
+  const PRODUCT_LISTS = ['productid', 'sie_productfamilyid', 'sie_technologyid', 'sie_mainassetid'];
+  const lookupList = (id) => qv(`ul[data-id="${id}.fieldControl-LookupResultsDropdown_${id}_SelectedRecordList"]`);
+  async function clearProduct(btn) {
+    if (clearBusy) return;
+    clearBusy = true; btn.disabled = true;
+    try {
+      for (const id of ['productid', 'sie_mainassetid']) {
+        const ul = lookupList(id);
+        const dels = ul ? [...ul.querySelectorAll(`button[data-id="${id}.fieldControl-LookupResultsDropdown_${id}_selected_tag_delete"]`)] : [];
+        for (const d of dels) { realClick(d); await sleep(700); }
+      }
+      await sleep(800);
+      const left = ['sie_technologyid', 'sie_productfamilyid'].filter((id) => lookupList(id) && lookupList(id).querySelector('[data-id$="_selected_tag"]'));
+      if (left.length) toast([tr('Clear product fields'), tr('Technology and Product Family are read-only and were not cleared.')]);
+    } catch (e) {
+      toast([tr('Clear product fields'), String(e && e.message || e)], true);
+    } finally { clearBusy = false; btn.disabled = false; }
+  }
+  function clearTick() {
+    const ul = settings.ticketBtn !== false && hostOk() && PRODUCT_LISTS.map(lookupList).find(Boolean);
+    const sec = ul && ul.closest('section');
+    if (!sec) { if (clearHost) { clearHost.remove(); clearHost = null; } return; }
+    if (clearHost && clearHost.isConnected && clearHost.parentElement === sec) return;
+    if (clearHost) clearHost.remove();
+    if (getComputedStyle(sec).position === 'static') sec.style.position = 'relative';
+    clearHost = document.createElement('div');
+    const r = clearHost.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    st.textContent = ':host{position:absolute;top:8px;right:12px;z-index:5}button{box-sizing:border-box;width:22px;height:22px;padding:0;font:400 16px/18px "Segoe UI",system-ui,sans-serif;border:1px solid #d1d1d1;border-radius:4px;background:#fff;color:#242424;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.12)}button:hover{background:#f5f5f5;border-color:#c7c7c7}button:active{background:#e0e0e0}button:disabled{opacity:.6;cursor:default}';
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '×';
+    b.title = b.ariaLabel = tr('Clear product fields'); b.onclick = () => clearProduct(b);
+    r.append(st, b);
+    sec.appendChild(clearHost);
+  }
+
   function ticketTick() {
     const lab = settings.ticketBtn !== false && hostOk() && qv('div[title^="Case Title"] > label');
     const on = lab && qv('li[data-id="tablist-tabProduct"]');
@@ -753,6 +790,7 @@
     try { dropQueue(); } catch (_) { /* ignora */ }
     try { rcTick(); } catch (_) { /* ignora */ }
     try { ticketTick(); } catch (_) { /* ignora */ }
+    try { clearTick(); } catch (_) { /* ignora */ }
     if (!enabled()) { if (host) { host.remove(); host = null; root = null; } return; }
     const s = isEmailDraft();
     if (!s) { if (host) { host.remove(); host = null; root = null; } return; }
