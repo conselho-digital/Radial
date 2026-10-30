@@ -738,8 +738,7 @@
     if (!tabP || !tabM) throw new Error(tr('Product and Main tabs not found.'));
     realClick(tabP);
     // abre o asset clicando no Main Asset (link); se não abrir, clique nativo e, por último, duplo clique no serial da tabela
-    const MA_TAG = '[data-id="sie_mainassetid.fieldControl-LookupResultsDropdown_sie_mainassetid_selected_tag"]';
-    const DEVICE = 'input[data-id="msdyn_deviceid.fieldControl-text-box-text"]';
+    const DEVICE = ASSET_DEVICE;
     const tag = await waitFor(() => qv(MA_TAG), 7000);
     let inp = null;
     if (tag) {
@@ -779,6 +778,28 @@
     const pre = title.slice(0, m.index).replace(/[:\s]+$/, '').trim();
     return pre || 'Reopened_' + m[1];
   }
+  // Abre o Main Asset (clique no link, na aba Product), lê Serial Number e Device ID do registro e fecha com Save & Close
+  // (sem mudar nada). Devolve {} se o registro não abrir: aí vale o serial da tabela de Assets.
+  const MA_TAG = '[data-id="sie_mainassetid.fieldControl-LookupResultsDropdown_sie_mainassetid_selected_tag"]';
+  const ASSET_DEVICE = 'input[data-id="msdyn_deviceid.fieldControl-text-box-text"]';
+  const ASSET_SERIAL = 'input[data-id="sie_serialnumber.fieldControl-text-box-text"]';
+  async function readAsset() {
+    const tag = await waitFor(() => qv(MA_TAG), 2500);
+    if (!tag) return {};
+    realClick(tag);
+    let ser = await waitFor(() => qv(ASSET_SERIAL), 5000);
+    if (!ser) { tag.click(); ser = await waitFor(() => qv(ASSET_SERIAL), 4000); }
+    if (!ser) return {};
+    await sleep(250);                                       // o Device ID carrega junto; dá um instante
+    const dev = qv(ASSET_DEVICE);
+    const out = { opened: true, serial: norm(ser.value), dev: dev ? norm(dev.value) : '' };
+    if (/^(select to enter data|---)$/i.test(out.serial)) out.serial = '';
+    if (/^(select to enter data|---)$/i.test(out.dev)) out.dev = '';
+    const sc = await waitFor(() => qv('button[data-id="msdyn_customerasset|NoRelationship|Form|Mscrm.Form.msdyn_customerasset.SaveAndClose"]'), 4000);
+    if (sc) { realClick(sc); await waitFor(() => !qv(ASSET_SERIAL), 8000, 80); await sleep(250); }
+    return out;
+  }
+
   // Tabela de Assets carregada e vazia ("No data available", "0 - 0 of 0", "Rows: 0").
   const assetsEmpty = () => [...document.querySelectorAll('div,span,p,label')].some((e) => e.children.length === 0 && visible(e) && /^(no data available|0\s*-\s*0\s*of\s*0|rows:\s*0)$/i.test(norm(e.textContent)));
   async function collectProduct(d) {
@@ -806,9 +827,18 @@
         await sleep(100);
       }
     };
-    d.serial = await waitSerial(d.sw || d.swFamily ? 1200 : 2500);
+    if (d.sw || d.swFamily) {
+      d.serial = await waitSerial(1200);
+    } else {
+      // Serial e Device ID vêm do registro do Main Asset; se ele não abrir, serial da tabela de Assets e Device ID da aba Product
+      const a = await readAsset();
+      if (a.opened) { d.serial = a.serial; d.dev = a.dev; }
+      else {
+        d.serial = await waitSerial(2500);
+        if (!d.charger || d.charger.key === 'SI-D') d.dev = (await waitFor(deviceId, 2000)) || '';
+      }
+    }
     d.serialFound = !!d.serial;           // sem serial não há asset: não pergunta o Device ID
-    if (!d.sw && !d.swFamily && (!d.charger || d.charger.key === 'SI-D')) d.dev = (await waitFor(deviceId, 2000)) || '';
     realClick(tabM);
     const input = await waitFor(() => qv(TITLE_SEL), 6000);
     if (!input) throw new Error(tr('Case Title field not found.'));
