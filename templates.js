@@ -1046,6 +1046,21 @@
   // Depois do Assign: botão "Add to Queue" da barra, escreve "*<fila>" no campo Queue (apagando a fila que já estava), Enter e Add.
   const QUEUE_DLG = '[data-lp-id="dialogView|AddToQueue"], [data-id="AddToQueue"]';
   const QUEUE_INPUT = 'input[data-id^="businessqueues_id.fieldControl-LookupResultsDropdown"][data-id$="textInputBox_with_filter_new"]';
+  // Clique "de verdade": passa o mouse por cima (alguns botões só aparecem/respondem com hover), com coordenadas do
+  // centro do elemento, ponteiro de mouse e botão pressionado.
+  function realClickAt(el) {
+    const r = el.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, composed: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, button: 0, pointerType: 'mouse', isPrimary: true, pointerId: 1 };
+    const fire = (t, extra) => el.dispatchEvent(new (t.startsWith('pointer') ? PointerEvent : MouseEvent)(t, { ...o, ...extra }));
+    ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove'].forEach((t) => fire(t, { buttons: 0 }));
+    fire('pointerdown', { buttons: 1 }); fire('mousedown', { buttons: 1, detail: 1 });
+    try { el.focus({ preventScroll: true }); } catch (_) { /* ignora */ }
+    fire('pointerup', { buttons: 0 }); fire('mouseup', { buttons: 0, detail: 1 }); fire('click', { buttons: 0, detail: 1 });
+  }
+  function pressKeyOn(el, key, code) {
+    const kc = { Delete: 46, Backspace: 8, Enter: 13 }[key] || 0;
+    ['keydown', 'keypress', 'keyup'].forEach((t) => el.dispatchEvent(new KeyboardEvent(t, { key, code: code || key, keyCode: kc, which: kc, bubbles: true, cancelable: true, composed: true })));
+  }
   async function addToQueue(text) {
     if (!(await waitFor(() => !assignDialog(), 10000, 100))) throw new Error(tr('Assign window did not close.'));
     await sleep(400);
@@ -1060,19 +1075,26 @@
     const count = () => { const d = getDlg(); return d ? d.querySelectorAll(DEL).length : 0; };
     for (let n = 0; n < 5 && count(); n++) {
       const before = count();
-      // vários jeitos de clicar no ×, até a fila sumir: ícone, botão, teclado, clique nativo
-      for (const how of ['icon', 'button', 'key', 'native']) {
+      // vários jeitos de tirar a fila, até ela sumir: ícone, botão, tecla Delete/Backspace na etiqueta, Enter, clique nativo
+      for (const how of ['icon', 'button', 'delete', 'backspace', 'enter', 'native']) {
         const d = getDlg(); const del = d && d.querySelector(DEL);
         if (!del) break;
-        if (how === 'icon') realClick(del.querySelector('[data-id$="microsoftIcon_cancelButton"]') || del);
-        else if (how === 'button') realClick(del);
-        else if (how === 'key') { del.focus(); pressKey(del, 'Enter'); }
-        else del.click();
+        const tag = d.querySelector('[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_selected_tag"]');
+        if (how === 'icon') realClickAt(del.querySelector('[data-id$="microsoftIcon_cancelButton"]') || del);
+        else if (how === 'button') realClickAt(del);
+        else if (how === 'delete' && tag) { tag.focus(); pressKeyOn(tag, 'Delete'); }
+        else if (how === 'backspace' && tag) { tag.focus(); pressKeyOn(tag, 'Backspace'); }
+        else if (how === 'enter') { del.focus(); pressKeyOn(del, 'Enter'); }
+        else if (how === 'native') del.click();
         if (await waitFor(() => count() < before, 1200, 50)) break;
       }
     }
     await sleep(200);
-    const inputOf = () => { const d = getDlg(); const i = d && d.querySelector(QUEUE_INPUT); return i && visible(i) ? i : null; };
+    const inputOf = () => { const d = getDlg(); const i = (d && d.querySelector(QUEUE_INPUT)) || qv(QUEUE_INPUT); return i && visible(i) ? i : null; };
+    if (!inputOf()) {                      // plano B: o botão de busca da própria caixa abre o campo de texto
+      const d = getDlg(); const sb = d && d.querySelector('button[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_search"]');
+      if (sb) { realClickAt(sb); await sleep(600); }
+    }
     const input = await waitFor(inputOf, 5000);
     if (!input) throw new Error(tr('Queue box not found.') + (count() ? ' (' + tr('current queue could not be removed') + ')' : ''));
     const okBtn = () => { const d = getDlg(); const b = d && d.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; };
