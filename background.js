@@ -308,12 +308,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // Antes de aplicar um template: apaga tudo no corpo do e-mail que está acima da linha "--- Original Message ---"
-  // e deixa um parágrafo vazio no topo com o cursor. Sem essa linha, não mexe em nada.
+  // e deixa um parágrafo vazio no topo com o cursor. Sem essa linha, não mexe em nada (exceto wipeAll: apaga tudo).
   if (msg.type === 'tpl-clear-top' && sender.tab && sender.frameId === 0) {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
       world: 'MAIN',
-      func: () => {
+      args: [!!msg.wipeAll],
+      func: (wipeAll) => {
         let total = 0;
         document.querySelectorAll('.ck-editor__editable').forEach((el) => {
           const ed = el.ckeditorInstance;
@@ -324,7 +325,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             for (const item of w.createRangeIn(root).getItems()) {
               if (item.is('$textProxy') && /-{5,}\s*Original Message\s*-{5,}/i.test(item.data)) { mark = item; break; }
             }
-            if (!mark) return;
+            if (!mark) {
+              // Templates de primeira resposta / pedido de informação: sem a linha "Original Message", apaga tudo.
+              if (!wipeAll) return;
+              const all = w.createRangeIn(root);
+              if (!all.isCollapsed) w.remove(all);
+              const p0 = w.createElement('paragraph');
+              w.insert(p0, w.createPositionAt(root, 0));
+              w.setSelection(p0, 'in');
+              total++;
+              return;
+            }
             const block = mark.parent;
             const before = w.createRange(w.createPositionAt(root, 0), w.createPositionBefore(block));
             if (!before.isCollapsed) w.remove(before);

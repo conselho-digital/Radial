@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Radial",
-  "version": "1.24.1",
+  "version": "1.25.0",
   "description": "Contextual radial menu at the cursor: per-site actions, recorded shortcuts and your own bookmarklets.",
   "permissions": ["storage", "unlimitedStorage", "scripting", "tabs", "debugger"],
   "host_permissions": ["<all_urls>"],
