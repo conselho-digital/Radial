@@ -649,6 +649,21 @@
     realClick(opt);
     await sleep(500);
   }
+  // Fecha o quadro da etapa e confere que fechou: Escape, depois clique fora, depois clique na etapa.
+  async function closeStage(stage) {
+    const open = () => qv(WARR_FLY) || qv(STATUS_FLY);
+    const attempts = [
+      () => { for (const t of [document.activeElement, document.body, document]) t && t.dispatchEvent && t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true })); },
+      () => realClick(document.body),
+      () => realClick(stage),
+    ];
+    for (const go of attempts) {
+      if (!open()) return;
+      go();
+      if (!(await waitFor(() => !open(), 700, 50))) continue;
+      return;
+    }
+  }
   async function syncStage() {
     const stage = qv(STAGE);
     if (!stage) throw new Error(tr('Process stage not found.'));
@@ -658,7 +673,7 @@
     const warrantyValue = ddValue(warr);
     const status = qv(STATUS_FLY);
     if (status && ddValue(status).toLowerCase() !== 'new enquiry') await chooseOption(status, 'New Enquiry');
-    if (qv(WARR_FLY)) { realClick(stage); await sleep(500); }       // fecha a etapa
+    await closeStage(stage);
     const main = await waitFor(() => qv(WARR_MAIN), 4000);
     if (!main) throw new Error(tr('Warranty claimed by Customer not found.'));
     if (warrantyValue && ddValue(main).toLowerCase() !== warrantyValue.toLowerCase()) await chooseOption(main, warrantyValue);
