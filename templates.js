@@ -493,10 +493,10 @@
   ];
   const SOFTWARE = [
     { key: 'Si-Charge', label: 'Sifinity Charge', color: '#d1ecf1' }, { key: 'Si-Control', label: 'Sifinity Control', color: '#e2e3e5' },
-    { key: 'Si-Depot', label: 'Sifinity Depot', color: '#fff3cd' }, { key: 'Si-Fleet', label: 'Sifinity Fleet', color: '#d4edda' },
+    { key: 'Si-Depot', label: 'Sifinity Depot', alias: 'depotfinity', color: '#fff3cd' }, { key: 'Si-Fleet', label: 'Sifinity Fleet', color: '#d4edda' },
     { key: 'Si-Go', label: 'Sifinity Go', color: '#f8d7da' }, { key: 'Si-Setup', label: 'Sifinity Setup', color: '#e0cffc' }
   ];
-  const detectSoftware = (name) => { const n = fold(name); return SOFTWARE.find((x) => n.includes(fold(x.label)) || n.includes(fold(x.key))) || null; };
+  const detectSoftware = (name) => { const n = fold(name); return SOFTWARE.find((x) => n.includes(fold(x.label)) || n.includes(fold(x.key)) || (x.alias && n.includes(x.alias))) || null; };
   function detectCharger(name) {
     const n = String(name || '').toLowerCase();
     const pick = (k) => CHARGERS.find((c) => c.key === k);
@@ -626,9 +626,14 @@
     realClick(tabP);
     const fam = await waitFor(() => { const e = qv(FAM_SEL); return e && textOf(e); }, 7000);
     d.fam = fam || '';
-    d.sw = detectSoftware(d.fam);
-    d.charger = d.sw ? null : detectCharger(d.fam);
-    if (!d.sw) {
+    // Família "Sifinity" (software): o tipo vem do campo Product (Sifinity Control, DepotFinity, Sifinity Go…).
+    const prodTag = await waitFor(() => { const u = lookupList('productid'); const e = u && u.querySelector('[data-id$="_selected_tag_text"]'); return e && textOf(e); }, 3000);
+    const prodSw = detectSoftware(prodTag);
+    d.swFamily = /sifinity|depotfinity|software/i.test(d.fam);
+    d.sw = detectSoftware(d.fam) || ((d.swFamily || !detectCharger(d.fam)) && prodSw) || null;
+    d.charger = d.sw || d.swFamily ? null : detectCharger(d.fam);
+    d.product = prodTag || '';
+    if (!d.sw && !d.swFamily) {
       d.serial = (await waitFor(assetSerial, 7000)) || '';
       if (!d.charger || d.charger.key === 'SI-D') d.dev = (await waitFor(deviceId, 4000)) || '';
     }
@@ -689,7 +694,7 @@
       if (d.closed) return;
       body.textContent = '';
       if (!d.cc) return askCountry();
-      if (!d.sw && !d.charger) return askType(false);
+      if (!d.sw && !d.charger) return askType(!!d.swFamily);
       if (!d.sw && !d.serial && !d.serialAsked) return askSerial();
       if (d.charger && d.charger.key === 'SI-D' && !d.dev && !d.devAsked) return askDevice();
       return finalStep();
