@@ -914,7 +914,7 @@
     swapHost = document.createElement('div');
     const r = swapHost.attachShadow({ mode: 'open' });
     const st = document.createElement('style');
-    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{box-sizing:border-box;font:400 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:3px 10px;border:1px solid #d1d1d1;border-radius:4px;background:#fff;color:#242424;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.12);transition:background .1s,border-color .1s}button:hover{background:#f5f5f5;border-color:#c7c7c7}button:active{background:#e0e0e0;border-color:#b3b3b3}button:focus-visible{outline:2px solid #000;outline-offset:1px}button:disabled{opacity:.6;cursor:default}';
+    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{box-sizing:border-box;font:400 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:3px 10px;border:1px solid #d13438;border-radius:4px;background:#d13438;color:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18);transition:background .1s,border-color .1s}button:hover{background:#b92d31;border-color:#b92d31}button:active{background:#a4262c;border-color:#a4262c}button:focus-visible{outline:2px solid #000;outline-offset:1px}button:disabled{opacity:.6;cursor:default}';
     const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Swap'); b.onclick = () => swapContacts(b);
     r.append(st, b);
     wrap.appendChild(swapHost);
