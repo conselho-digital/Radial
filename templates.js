@@ -743,7 +743,7 @@
     ticketHost = document.createElement('div');
     const r = ticketHost.attachShadow({ mode: 'open' });
     const st = document.createElement('style');
-    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{font:400 13px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:3px 10px;border:1px solid #8a8886;border-radius:3px;background:#fff;color:#242424;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18)}button:hover{background:#f3f2f1}button:disabled{opacity:.6;cursor:default}';
+    st.textContent = ':host{display:inline-block;margin-left:10px;vertical-align:middle}button{box-sizing:border-box;font:400 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;padding:3px 10px;border:1px solid #d1d1d1;border-radius:4px;background:#fff;color:#242424;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.12);transition:background .1s,border-color .1s}button:hover{background:#f5f5f5;border-color:#c7c7c7}button:active{background:#e0e0e0;border-color:#b3b3b3}button:focus-visible{outline:2px solid #000;outline-offset:1px}button:disabled{opacity:.6;cursor:default}';
     const b = document.createElement('button'); b.type = 'button'; b.textContent = tr('Update title'); b.onclick = () => startTicket(b);
     r.append(st, b);
     wrap.appendChild(ticketHost);
