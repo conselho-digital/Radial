@@ -349,9 +349,23 @@
     if (inp && cleanSubject(inp)) st.done = true;
   }
 
+  // Posição de rolagem da página (e de qualquer área rolável) antes de aplicar o template: o editor leva o cursor
+  // para o fim do texto e a tela desce; depois de aplicar, volta para onde estava.
+  function scrollSnap() {
+    const out = [];
+    for (const el of document.querySelectorAll('*')) {
+      if (el.scrollHeight > el.clientHeight + 1 && el.clientHeight > 0 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) out.push([el, el.scrollTop, el.scrollLeft]);
+    }
+    const se = document.scrollingElement;
+    if (se) out.push([se, se.scrollTop, se.scrollLeft]);
+    return out;
+  }
+  const scrollBack = (snap) => snap.forEach(([el, t, l]) => { try { el.scrollTop = t; el.scrollLeft = l; } catch (_) { /* ignora */ } });
+
   async function apply(it) {
     if (working) return;
     working = true; status = tr('Applying…'); lastErr = null; render();
+    const snap = scrollSnap();
     try {
       try { await chrome.runtime.sendMessage({ type: 'tpl-clear-top', wipeAll: WIPE_TEMPLATE.test(it.name) }); } catch (_) { /* segue sem limpar */ }
       await applyTemplate(it.name);
@@ -362,6 +376,10 @@
       status = '';
     } catch (e) { lastErr = e; status = ''; console.warn('Radial: templates', e); }
     working = false; render();
+    scrollBack(snap);
+    // o editor ainda pode rolar logo depois: volta de novo
+    setTimeout(() => scrollBack(snap), 400);
+    setTimeout(() => scrollBack(snap), 1200);
   }
 
   // ---------- Página de e-mail em rascunho ----------
