@@ -1091,15 +1091,16 @@
       assignHost = document.createElement('div');
       const sr = assignHost.attachShadow({ mode: 'open' });
       const st = document.createElement('style');
-      st.textContent = ':host{position:fixed;z-index:2147483000}.col{display:flex;flex-direction:column;gap:8px}button{font:600 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;text-align:center;padding:6px 14px;border:0;border-radius:4px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3);min-width:150px}button:hover{filter:brightness(.88)}button:active{filter:brightness(.78)}button:disabled{opacity:.6;cursor:default}.t{font-weight:400;font-size:12px;margin-left:10px;padding-left:10px;border-left:1px solid rgba(255,255,255,.55);opacity:.95}';
+      st.textContent = ':host{position:fixed;z-index:2147483000}.col{display:flex;flex-direction:column;gap:8px}button{font:600 13px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;text-align:center;padding:6px 14px;border:0;border-radius:4px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)}button:hover{filter:brightness(.88)}button:active{filter:brightness(.78)}button:disabled{opacity:.6;cursor:default}.row{display:flex;align-items:center;gap:8px}.row button{width:130px;flex:none}.t{font:400 12px/18px "Segoe UI",system-ui,sans-serif;white-space:nowrap;background:#fff;color:#242424;padding:6px 10px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer}';
       const col = document.createElement('div'); col.className = 'col';
       list.forEach((q) => {
-        const b = document.createElement('button'); b.type = 'button'; b.title = '*' + q.text; b.style.background = q.color;
-        const l = document.createElement('span'); l.textContent = q.label;
-        const t = document.createElement('span'); t.className = 't'; t.textContent = q.text;
-        b.append(l, t);
+        const row = document.createElement('div'); row.className = 'row';
+        const b = document.createElement('button'); b.type = 'button'; b.title = '*' + q.text; b.style.background = q.color; b.textContent = q.label;
         b.onclick = () => runAssign(q.text);
-        col.appendChild(b);
+        const t = document.createElement('span'); t.className = 't'; t.textContent = q.text; t.title = '*' + q.text;
+        t.onclick = () => runAssign(q.text);
+        row.append(b, t);
+        col.appendChild(row);
       });
       sr.append(st, col);
       document.body.appendChild(assignHost);
