@@ -825,16 +825,16 @@
     clearBusy = true; btn.disabled = true;
     try {
       // Ordem: Main Asset, Product, Product Family, Technology (os dois últimos podem ser só leitura).
-      // Clica no × de cada um e segue assim que a etiqueta some (sem espera fixa).
+      // Clica no × de cada um e espera 400 ms antes do próximo.
       for (const id of ['sie_mainassetid', 'productid', 'sie_productfamilyid', 'sie_technologyid']) {
         const ul = lookupList(id);
         const dels = ul ? [...ul.querySelectorAll(`button[data-id="${id}.fieldControl-LookupResultsDropdown_${id}_selected_tag_delete"]`)] : [];
         for (const d of dels) {
           realClick(d);
-          await waitFor(() => !d.isConnected || !visible(d), 1500, 30);
+          await sleep(400);
         }
       }
-      await sleep(150);
+      await sleep(400);
       const names = { sie_productfamilyid: 'Product Family', sie_technologyid: 'Technology' };
       const left = ['sie_productfamilyid', 'sie_technologyid'].filter((id) => lookupList(id) && lookupList(id).querySelector('[data-id$="_selected_tag"]')).map((id) => names[id]);
       if (left.length) toast([tr('Clear product fields'), tr('{names} are read-only and were not cleared.', { names: left.join(' + ') })], false, 5000);
