@@ -578,6 +578,36 @@
   }
   const COUNTRY_INPUT = 'input[data-id*="sie_countryofcharger"][data-id*="textInputBox"], [data-id*="sie_countryofcharger"] input[type="text"], [id*="sie_countryofcharger"] input[type="text"]';
 
+  // Depois de gravar o título: abre a etapa do processo (New Enquiry), garante o Status Reason "New Enquiry",
+  // lê "Warranty Confirmed?" e copia o valor para "Warranty claimed by Customer" na aba Main.
+  const STAGE = '[data-id^="MscrmControls.Containers.ProcessBreadCrumb-stageNameContainer"]';
+  const WARR_FLY = 'button[data-id="header_process_sie_warrantycode.fieldControl-option-set-select"]';
+  const STATUS_FLY = 'button[data-id="header_process_statuscode.fieldControl-option-set-select"]';
+  const WARR_MAIN = 'button[data-id="sie_warrantyclaimedbycustomercode.fieldControl-option-set-select"]';
+  const ddValue = (b) => norm(b.getAttribute('value') || b.getAttribute('title') || b.textContent);
+  async function chooseOption(btn, text) {
+    realClick(btn);
+    const want = text.toLowerCase();
+    const opt = await waitFor(() => [...document.querySelectorAll('[role="option"]')].find((o) => visible(o) && norm(o.textContent).toLowerCase() === want), 4000);
+    if (!opt) throw new Error(tr('Option "{name}" not found.', { name: text }));
+    realClick(opt);
+    await sleep(500);
+  }
+  async function syncStage() {
+    const stage = qv(STAGE);
+    if (!stage) throw new Error(tr('Process stage not found.'));
+    realClick(stage);
+    const warr = await waitFor(() => qv(WARR_FLY), 5000);
+    if (!warr) throw new Error(tr('Warranty Confirmed? not found.'));
+    const warrantyValue = ddValue(warr);
+    const status = qv(STATUS_FLY);
+    if (status && ddValue(status).toLowerCase() !== 'new enquiry') await chooseOption(status, 'New Enquiry');
+    if (qv(WARR_FLY)) { realClick(stage); await sleep(500); }       // fecha a etapa
+    const main = await waitFor(() => qv(WARR_MAIN), 4000);
+    if (!main) throw new Error(tr('Warranty claimed by Customer not found.'));
+    if (warrantyValue && ddValue(main).toLowerCase() !== warrantyValue.toLowerCase()) await chooseOption(main, warrantyValue);
+  }
+
   let ticketHost = null, ticketBusy = false, ticketDlg = null, ticketRun = 0;
 
   // Passa pela aba Product (família, serial do asset, Device ID), volta a Main e lê o título atual.
@@ -721,6 +751,7 @@
           if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
         }
         close();
+        syncStage().catch((e) => toast([tr('Update title'), String(e && e.message || e)], true));
       };
       ap.onclick = apply;
       rest.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
