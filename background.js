@@ -407,6 +407,44 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Ticket Sicharge D: coloca no topo da Internal Description os links do SCB e do Sifinity para o Charger ID:
+  //   "SCB: <ID>" (link), "Sifinity: <ID>" (link) e um parágrafo vazio para separar do resto. Não repete se já existir.
+  if (msg.type === 'desc-links' && sender.tab && sender.frameId === 0 && typeof msg.id === 'string') {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      world: 'MAIN',
+      args: [msg.id.trim()],
+      func: (id) => {
+        if (!id) return { ok: false, error: 'No Charger ID.' };
+        const eds = [...document.querySelectorAll('.ck-editor__editable')].filter((el) => el.ckeditorInstance);
+        const el = eds.find((e) => /description/i.test(e.getAttribute('aria-label') || '')) || eds[0];
+        if (!el) return { ok: false, error: 'Internal Description editor not found.' };
+        const ed = el.ckeditorInstance;
+        const scb = 'https://configuration.sicharge.technology/chargers/' + encodeURIComponent(id) + '/detail';
+        const sif = 'https://control.emobility.io/chargers/' + encodeURIComponent(id) + '/charger-details';
+        let exists = false;
+        ed.model.change((w) => {
+          const root = ed.model.document.getRoot();
+          for (const item of w.createRangeIn(root).getItems()) {
+            if (item.is('$textProxy') && item.getAttribute('linkHref') === scb) { exists = true; break; }
+          }
+          if (exists) return;
+          const line = (label, text, href) => {
+            const p = w.createElement('paragraph');
+            w.insertText(label, { bold: true }, p, 'end');
+            w.insertText(text, { linkHref: href }, p, 'end');
+            return p;
+          };
+          w.insert(line('SCB: ', id, scb), root, 0);
+          w.insert(line('Sifinity: ', id, sif), root, 1);
+          w.insert(w.createElement('paragraph'), root, 2);
+        });
+        return { ok: true, existed: exists };
+      },
+    }).then((r) => sendResponse((r && r[0] && r[0].result) || { ok: false, error: 'No response.' })).catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
+    return true;
+  }
+
   // Cartão de templates: apaga o item de lista vazio "Troubleshooting:" que alguns templates deixam no corpo.
   if (msg.type === 'tpl-drop-ts' && sender.tab && sender.frameId === 0) {
     chrome.scripting.executeScript({

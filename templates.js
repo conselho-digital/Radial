@@ -781,8 +781,17 @@
           const c = document.querySelector('input[data-id="sie_chargerid.fieldControl-text-box-text"]');
           if (c) { typeInto(c, d.dev); c.dispatchEvent(new Event('change', { bubbles: true })); }
         }
+        const devId = d.charger && d.charger.key === 'SI-D' ? d.dev : '';
         close();
-        syncStage().catch((e) => toast([tr('Update title'), String(e && e.message || e)], true));
+        (async () => {
+          if (devId) {
+            try {
+              const r = await chrome.runtime.sendMessage({ type: 'desc-links', id: devId });
+              if (!r || !r.ok) toast([tr('Update title'), (r && r.error) || tr('Failed to run.')], true, 5000);
+            } catch (_) { /* extensão recarregada */ }
+          }
+          await syncStage();
+        })().catch((e) => toast([tr('Update title'), String(e && e.message || e)], true));
       };
       ap.onclick = apply;
       rest.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
