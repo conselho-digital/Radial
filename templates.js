@@ -16,7 +16,8 @@
 
   const OLD_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex Team | eMobility TS SiFlex Team\nFlex Team | eMobility TS Flex Team\nTS Legacy Team | eMobility TS Legacy Siemens Team';
   const PREV_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team\nFlex | eMobility TS Flex Team\nTS Legacy | eMobility TS Legacy Siemens Team';
-  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
+  const PREV2_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
+  const DEFAULT_QUEUES = 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
   const HOST = 'isp.crm4.dynamics.com';
   const QUEUE_NAME = 'eMobility Support Queue';
   let settings = { emailTpl: true, removeQueue: true, rcBtn: false, ticketBtn: true, shareCopy: true, assignBtns: true, assignQueues: DEFAULT_QUEUES, emailTplKeep: 15, emailTplSee: 8 };
@@ -1019,9 +1020,9 @@
   const QUEUE_COLORS = ['#0f6cbd', '#8764b8', '#038387', '#ca5010', '#498205', '#c239b3', '#5c2e91', '#0b6a0b'];
   const ASSIGN_DD = 'button[data-id="rdoMe_id.fieldControl-option-set-select"]';
   const ASSIGN_INPUT = 'input[data-id="systemuserview_id.fieldControl-LookupResultsDropdown_systemuserview_id_textInputBox_with_filter_new"]';
-  // Linha: "Botão | Conteúdo" ou "Botão | Conteúdo | L" (L = lado esquerdo da janela; sem isso, lado direito)
-  const parseQueues = () => String(settings.assignQueues == null || settings.assignQueues === OLD_QUEUES || settings.assignQueues === PREV_QUEUES ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
-    .map((l) => { const p = l.split('|').map(norm); return p.length < 2 ? null : { label: p[0], text: p[1].replace(/^\*+/, '').trim(), left: /^l(eft)?$/i.test(p[2] || '') }; })
+  // Linha: "Botão | Conteúdo" + marcas opcionais depois: L = lado esquerdo da janela; NQ = não faz o Add to Queue
+  const parseQueues = () => String(settings.assignQueues == null || [OLD_QUEUES, PREV_QUEUES, PREV2_QUEUES].includes(settings.assignQueues) ? DEFAULT_QUEUES : settings.assignQueues).split('\n')
+    .map((l) => { const p = l.split('|').map(norm); const fl = p.slice(2).map((x) => x.toUpperCase()); return p.length < 2 ? null : { label: p[0], text: p[1].replace(/^\*+/, '').trim(), left: fl.includes('L') || fl.includes('LEFT'), noQueue: fl.includes('NQ') }; })
     .filter((q) => q && q.label && q.text);
   const TR_COUNTRIES = new Set(['AE', 'SA', 'QA', 'KW', 'TH', 'SG', 'NZ', 'AU']);
   const titleCountry = () => { const m = /\/([A-Za-z]{2})-\[/.exec(caseTitleText()); return m ? m[1].toUpperCase() : ''; };
@@ -1039,13 +1040,15 @@
     realClick(btn);
     const dlg = await waitFor(() => qv(QUEUE_DLG), 6000);
     if (!dlg) throw new Error(tr('Add to Queue window not found.'));
-    // a fila atual já vem escolhida: apaga para aparecer a caixa de busca
-    for (let n = 0; n < 3 && !dlg.querySelector(QUEUE_INPUT); n++) {
-      const del = dlg.querySelector('button[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_selected_tag_delete"]');
-      if (!del) break;
-      realClick(del);
-      await sleep(400);
+    // a fila atual já vem escolhida: remove todas as escolhidas (× de cada uma) antes de buscar a nova
+    const DEL = 'button[data-id="businessqueues_id.fieldControl-LookupResultsDropdown_businessqueues_id_selected_tag_delete"]';
+    for (let n = 0; n < 5; n++) {
+      const dels = [...dlg.querySelectorAll(DEL)];
+      if (!dels.length) break;
+      realClick(dels[0]);
+      await waitFor(() => dlg.querySelectorAll(DEL).length < dels.length, 1500, 50);
     }
+    await sleep(200);
     const input = await waitFor(() => { const i = dlg.querySelector(QUEUE_INPUT); return i && visible(i) ? i : null; }, 5000);
     if (!input) throw new Error(tr('Queue box not found.'));
     const ok = await pickLookup(input, text, '*' + text);
@@ -1055,7 +1058,7 @@
     realClick(add);
   }
 
-  async function runAssign(text) {
+  async function runAssign(text, noQueue) {
     if (assignBusy) return;
     assignBusy = true;
     try {
@@ -1070,7 +1073,7 @@
       const go = await waitFor(() => { const b = dlg.querySelector('button[data-id="ok_id"]'); return b && !b.disabled ? b : null; }, 5000);
       if (!go) throw new Error(tr('Assign button stayed disabled.'));
       realClick(go);
-      await addToQueue(text);
+      if (!noQueue) await addToQueue(text);
     } catch (e) {
       toast([tr('Assign'), String(e && e.message || e)], true, 5000);
     } finally { assignBusy = false; }
@@ -1085,9 +1088,9 @@
     list.forEach((q) => {
       const row = document.createElement('div'); row.className = left ? 'row l' : 'row';
       const b = document.createElement('button'); b.type = 'button'; b.title = '*' + q.text; b.style.background = q.color; b.textContent = q.label;
-      b.onclick = () => runAssign(q.text);
+      b.onclick = () => runAssign(q.text, q.noQueue);
       const t = document.createElement('span'); t.className = 't'; t.textContent = q.text; t.title = '*' + q.text;
-      t.onclick = () => runAssign(q.text);
+      t.onclick = () => runAssign(q.text, q.noQueue);
       row.append(b, t);
       col.appendChild(row);
     });

@@ -109,7 +109,8 @@ async function render() {
 }
 
 // ---------- Gatilho do menu (mouse e tecla) ----------
-const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: true, removeQueue: true, rcBtn: false, sicLogs: true, ticketBtn: true, assignBtns: true, assignQueues: 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team', shareCopy: true, emailTplKeep: 15, emailTplSee: 8 };
+const DEFAULTS = { mouse: 'right-hold', holdMs: 150, key: null, size: 380, sticky: true, cancel: 'left', contentScale: 1.5, autoDnd: false, autoDndHosts: 'isp.crm4.dynamics.com', emailTpl: true, removeQueue: true, rcBtn: false, sicLogs: true, ticketBtn: true, assignBtns: true, assignQueues: 'Tier 2 | eMobility Tier2 | NQ\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team', shareCopy: true, emailTplKeep: 15, emailTplSee: 8 };
+const PREV2_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team | L\nFlex | eMobility TS Flex Team | L\nTS Legacy | eMobility TS Legacy Siemens Team';
 const PREV_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex | eMobility TS SiFlex Team\nFlex | eMobility TS Flex Team\nTS Legacy | eMobility TS Legacy Siemens Team';
 const OLD_QUEUES = 'Tier 2 | eMobility Tier2\nTier 3 | eMobility TS SiD\nSiFlex Team | eMobility TS SiFlex Team\nFlex Team | eMobility TS Flex Team\nTS Legacy Team | eMobility TS Legacy Siemens Team';
 let cfg = { ...DEFAULTS };
@@ -268,7 +269,7 @@ window.addEventListener('keydown', (e) => {
   bmEditor = E.mount($('bmEditor'), { bookmarklet: true, siteList: window.RADIAL_SITES.map((s) => ({ id: s.id, name: I.label(s.name) })), toast, onChange: render });
   const r = await chrome.storage.sync.get('settings');
   cfg = { ...DEFAULTS, ...(r.settings || {}) };
-  if (cfg.assignQueues === OLD_QUEUES || cfg.assignQueues === PREV_QUEUES) cfg.assignQueues = DEFAULTS.assignQueues;
+  if (cfg.assignQueues === OLD_QUEUES || cfg.assignQueues === PREV_QUEUES || cfg.assignQueues === PREV2_QUEUES) cfg.assignQueues = DEFAULTS.assignQueues;
   showCfg();
   render();
 })();
