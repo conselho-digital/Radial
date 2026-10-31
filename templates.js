@@ -909,6 +909,7 @@
       .q{margin-top:14px}.q:empty{display:none}
       .lbl{font-size:13px;font-weight:bold;color:#005f6b;letter-spacing:.5px;text-transform:uppercase;margin:0 0 6px}
       input{width:100%;padding:6px 12px;border:1px solid #005f6b;border-radius:5px;background:#fff;font:bold 14px 'Segoe UI',Roboto,sans-serif;height:34px;color:#333}
+      textarea{width:100%;height:120px;resize:vertical;padding:8px 12px;border:1px solid #005f6b;border-radius:5px;background:#fff;font:14px 'Segoe UI',Roboto,sans-serif;color:#333}
       .note{font-size:11px;font-weight:600;color:#555;margin:0 0 6px}
       .list{border:1px solid #005f6b;border-radius:5px;background:#fff;max-height:240px;overflow-y:auto;margin-top:6px}
       .it{padding:8px 12px;cursor:pointer;font-size:14px;font-weight:bold;color:#333;background:#fff;border:0;width:100%;text-align:left;display:block;font-family:inherit}.it:hover{background:#005f6b;color:#fff}
@@ -1128,6 +1129,20 @@
       q.append(rest, act); focusSoon(rest); setTimeout(() => { try { rest.select(); } catch (_) { /* fechada */ } }, 40);
     });
   }
+  // Descrição que o cliente enviou (para o e-mail de first response); Skip ou OK (OK só com texto).
+  async function askDescription(ui) {
+    return ui.ask(tr('Waiting for the description'), (q, done) => {
+      q.append(mk('div', 'lbl', tr('Customer description')), mk('div', 'note', tr('Paste what the customer sent')));
+      const ta = mk('textarea'); ta.spellcheck = false;
+      const skip = mk('button', 'btn g', tr('Skip')); skip.type = 'button';
+      const ok = mk('button', 'btn', tr('OK')); ok.type = 'button'; ok.style.display = 'none';
+      ta.addEventListener('input', () => { ok.style.display = norm(ta.value) ? '' : 'none'; });
+      skip.onclick = () => done('');
+      ok.onclick = () => { const v = ta.value.trim(); if (v) done(v); };
+      const act = mk('div', 'act'); act.append(skip, ok);
+      q.append(ta, act); focusSoon(ta);
+    });
+  }
   // Pergunta de botões (Yes / No).
   async function askButtons(ui, barMsg, label, buttons) {
     return ui.ask(barMsg, (q, done) => {
@@ -1193,6 +1208,9 @@
     await collectProduct(d);
     if (!d.sw && !d.charger) await askType(d, ui);
     ui.family();
+    ui.step(tr('Checking SLA'));
+    const sla = d.charger ? slaPrefix('/' + d.charger.key + '/') : '';
+    ui.item('sla', tr('SLA?'), 'ok', sla ? sla.replace(/\s+/g, ' ').trim() : tr('No'));
     if (!d.serial) {
       d.serial = await askSerial(ui);
     }
@@ -1248,6 +1266,7 @@
     // 8. Conferência
     await askButtons(ui, tr('Waiting for you'), tr('Damex, checked?'), [[tr('Yes'), true]]);
     const first = await askButtons(ui, tr('Waiting for you'), tr('Send first, response?'), [[tr('Yes'), true], [tr('No'), false, true]]);
+    if (first) d.custDesc = await askDescription(ui);     // texto que o cliente enviou (vai para o first response)
     ui.step(tr('Saving the case'));
     await saveCaseFirst();
     if (first) toast([tr('Create email'), tr('Coming soon: the Create email button is not set up yet.')], false, 5000);
