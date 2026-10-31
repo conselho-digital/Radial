@@ -317,7 +317,6 @@
   }
 
   // "eMob - first response NEW" e "eMob - First response missing info NEW": tira o item vazio "Troubleshooting:".
-  const WIPE_TEMPLATE = /^eMob - (first response NEW|Missing Information Request NEW)$/i;   // sem "Original Message": apaga tudo
   const TS_TEMPLATE = /^eMob - (first response NEW|First response missing info NEW)$/i;
   async function dropTroubleshooting() {
     let n = 0, t0 = Date.now();
@@ -373,7 +372,7 @@
     working = true; status = tr('Applying…'); lastErr = null; render();
     const snap = scrollSnap();
     try {
-      try { await chrome.runtime.sendMessage({ type: 'tpl-clear-top', wipeAll: WIPE_TEMPLATE.test(it.name) }); } catch (_) { /* segue sem limpar */ }
+      try { await chrome.runtime.sendMessage({ type: 'tpl-clear-top', wipeAll: true }); } catch (_) { /* segue sem limpar */ }
       await applyTemplate(it.name);
       await fixSubject();
       used(it); items = rank(); await saveHist();
